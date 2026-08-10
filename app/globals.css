@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+:root {
+  --color-canvas: #efe9dc;
+  --color-canvas-dark: #e3dbc7;
+  --color-canvas-line: #d8cdb4;
+  --color-pine: #24463b;
+  --color-pine-light: #325a4c;
+  --color-ink: #1f2a24;
+  --color-amber: #d98a2e;
+  --color-amber-dark: #b96f1d;
+  --color-brick: #b4432e;
+  --color-moss: #4c7a56;
+}
+
+@theme inline {
+  --color-canvas: var(--color-canvas);
+  --color-canvas-dark: var(--color-canvas-dark);
+  --color-canvas-line: var(--color-canvas-line);
+  --color-pine: var(--color-pine);
+  --color-pine-light: var(--color-pine-light);
+  --color-ink: var(--color-ink);
+  --color-amber: var(--color-amber);
+  --color-amber-dark: var(--color-amber-dark);
+  --color-brick: var(--color-brick);
+  --color-moss: var(--color-moss);
+
+  --font-display: var(--font-big-shoulders);
+  --font-body: var(--font-work-sans);
+  --font-tag: var(--font-plex-mono);
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+}
+
+/* Gear tag: the signature element. A rounded hang-tag with a punched hole and
+   a dashed stitch line, used for equipment cards, category pills and the
+   request confirmation — mirrors the physical tags used at real gear libraries. */
+.gear-tag {
+  position: relative;
+  border-radius: 0.75rem;
+  border: 1.5px dashed var(--color-canvas-line);
+  background: var(--color-canvas);
+}
+
+.gear-tag::before {
+  content: "";
+  position: absolute;
+  top: 0.85rem;
+  left: 0.85rem;
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 9999px;
+  background: var(--color-canvas);
+  border: 1.5px solid var(--color-canvas-line);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .transition-standard {
+    transition: all 150ms ease;
+  }
+}
