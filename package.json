@@ -1,5 +1,5 @@
 {
-  "name": "community-gear-share",
+  "name": "community-sharespace-sa",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -9,6 +9,8 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.1.0",
+    "@vercel/blob": "^2.8.0",
     "next": "16.3.0",
     "react": "19.2.8",
     "react-dom": "19.2.8"

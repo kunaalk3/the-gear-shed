@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useRequireUser } from "@/lib/use-require-user";
 import AdminNav from "@/components/AdminNav";
 import { FormField, FormTextarea } from "@/components/FormField";
+import { ImagePicker } from "@/components/ImagePicker";
 import { CATEGORIES, type Category, type EquipmentItem } from "@/lib/types";
 
 interface Blackout {
@@ -31,7 +32,7 @@ export default function EditItemPage() {
   const [depositRequired, setDepositRequired] = useState(0);
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
-  const [imagesText, setImagesText] = useState("");
+  const [images, setImages] = useState<string[]>([]);
 
   const [blackouts, setBlackouts] = useState<Blackout[]>([]);
   const [blackoutStart, setBlackoutStart] = useState("");
@@ -61,7 +62,7 @@ export default function EditItemPage() {
           setDepositRequired(found.depositRequired);
           setBookingConditions(found.bookingConditions);
           setCancellationRules(found.cancellationRules);
-          setImagesText(found.images.join("\n"));
+          setImages(found.images);
         }
       })
       .finally(() => setLoading(false));
@@ -75,11 +76,6 @@ export default function EditItemPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-
-    const images = imagesText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
 
     const res = await fetch(`/api/admin/items/${id}`, {
       method: "PATCH",
@@ -199,12 +195,7 @@ export default function EditItemPage() {
           value={cancellationRules}
           onChange={(e) => setCancellationRules(e.target.value)}
         />
-        <FormTextarea
-          label="Image URLs (one per line)"
-          rows={2}
-          value={imagesText}
-          onChange={(e) => setImagesText(e.target.value)}
-        />
+        <ImagePicker images={images} onChange={setImages} />
 
         {error && (
           <p role="alert" className="font-body text-sm text-brick">

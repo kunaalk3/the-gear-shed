@@ -1,18 +1,18 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
-import { store } from "@/lib/data/store";
+import { getItemById } from "@/lib/data/queries";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const item = store.items.find((i) => i.id === id && !i.retired);
-  return { title: item ? `${item.name} | The Gear Shed` : "Not found | The Gear Shed" };
+  const item = await getItemById(id);
+  return { title: item ? `${item.name} | Community ShareSpace SA` : "Not found | Community ShareSpace SA" };
 }
 
 export default async function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const item = store.items.find((i) => i.id === id && !i.retired);
+  const item = await getItemById(id);
   if (!item) notFound();
 
   return (

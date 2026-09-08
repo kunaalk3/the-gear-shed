@@ -23,7 +23,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The Gear Shed | Community Resource Network SA",
+  title: "Community ShareSpace SA | Community Resource Network SA",
   description:
     "Borrow marquees, tables, audio gear, sporting equipment and cooking facilities from Community Resource Network SA.",
 };

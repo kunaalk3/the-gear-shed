@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/data/store";
-import { createSession, hashPassword, toPublicUser, SESSION_COOKIE_NAME } from "@/lib/auth";
+import { createUser, getUserByEmail } from "@/lib/data/queries";
+import { createSessionToken, hashPassword, toPublicUser, SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -15,14 +15,14 @@ export async function POST(request: NextRequest) {
   }
 
   const normalisedEmail = String(email).trim().toLowerCase();
-  if (store.users.some((u) => u.email === normalisedEmail)) {
+  if (await getUserByEmail(normalisedEmail)) {
     return NextResponse.json(
       { error: "An account with that email already exists." },
       { status: 409 }
     );
   }
 
-  const user = {
+  const user = await createUser({
     id: randomUUID(),
     name: String(name).trim(),
     email: normalisedEmail,
@@ -30,16 +30,15 @@ export async function POST(request: NextRequest) {
     organisation: String(organisation).trim(),
     phone: phone ? String(phone).trim() : "",
     role: "requester" as const,
-  };
-  store.users.push(user);
+  });
 
-  const token = createSession(user.id);
+  const token = createSessionToken(user.id);
   const response = NextResponse.json({ user: toPublicUser(user) }, { status: 201 });
   response.cookies.set(SESSION_COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_MAX_AGE_SECONDS,
   });
   return response;
 }

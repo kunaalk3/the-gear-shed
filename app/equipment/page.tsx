@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import EquipmentBrowser from "./EquipmentBrowser";
 
 export const metadata = {
-  title: "Browse equipment | The Gear Shed",
+  title: "Browse equipment | Community ShareSpace SA",
 };
 
 export default function EquipmentPage() {

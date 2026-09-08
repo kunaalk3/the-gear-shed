@@ -20,7 +20,7 @@ export default function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
         <Link href="/" className="flex items-baseline gap-2">
           <span className="font-display text-2xl font-bold uppercase tracking-tight text-canvas">
-            The Gear Shed
+            Community ShareSpace SA
           </span>
           <span className="hidden font-tag text-[0.65rem] uppercase tracking-widest text-canvas/60 sm:inline">
             Community Resource Network SA

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useRequireUser } from "@/lib/use-require-user";
 import AdminNav from "@/components/AdminNav";
 import { FormField, FormTextarea } from "@/components/FormField";
+import { ImagePicker } from "@/components/ImagePicker";
 import { CATEGORIES, type Category } from "@/lib/types";
 
 export default function NewItemPage() {
@@ -18,7 +19,7 @@ export default function NewItemPage() {
   const [depositRequired, setDepositRequired] = useState(0);
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
-  const [imagesText, setImagesText] = useState("");
+  const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -28,11 +29,6 @@ export default function NewItemPage() {
     event.preventDefault();
     setSubmitting(true);
     setError(null);
-
-    const images = imagesText
-      .split("\n")
-      .map((s) => s.trim())
-      .filter(Boolean);
 
     const res = await fetch("/api/admin/items", {
       method: "POST",
@@ -122,12 +118,7 @@ export default function NewItemPage() {
           value={cancellationRules}
           onChange={(e) => setCancellationRules(e.target.value)}
         />
-        <FormTextarea
-          label="Image URLs (one per line, optional)"
-          rows={2}
-          value={imagesText}
-          onChange={(e) => setImagesText(e.target.value)}
-        />
+        <ImagePicker images={images} onChange={setImages} />
 
         {error && (
           <p role="alert" className="font-body text-sm text-brick">

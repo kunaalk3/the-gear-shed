@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/data/store";
+import { createRequestWithBooking, getBlackoutsForItem, getBookingsForItem, getItemById } from "@/lib/data/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { isBlackedOut, maxReservedInRange } from "@/lib/availability";
 
@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const item = store.items.find((i) => i.id === itemId && !i.retired);
+  const item = await getItemById(itemId);
   if (!item) {
     return NextResponse.json({ error: "Item not found." }, { status: 404 });
   }
@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "End date can't be before the start date." }, { status: 400 });
   }
 
-  const itemBlackouts = store.blackouts.filter((b) => b.itemId === itemId);
+  const itemBlackouts = await getBlackoutsForItem(itemId);
   if (isBlackedOut(itemBlackouts, startDate, endDate)) {
     return NextResponse.json(
       { error: "This item is unavailable for those dates." },
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const itemBookings = store.bookings.filter((b) => b.itemId === itemId);
+  const itemBookings = await getBookingsForItem(itemId);
   const reserved = maxReservedInRange(itemBookings, startDate, endDate);
   const available = item.totalQuantity - reserved;
   if (qty > available) {
@@ -64,33 +64,34 @@ export async function POST(request: NextRequest) {
   }
 
   const requestId = randomUUID();
-  const loanRequest = {
-    id: requestId,
-    itemId,
-    userId: user.id,
-    requesterName: user.name,
-    requesterEmail: user.email,
-    requesterOrganisation: user.organisation,
-    requesterPhone: user.phone,
-    startDate,
-    endDate,
-    quantity: qty,
-    notes: notes ? String(notes).trim() : "",
-    status: "pending" as const,
-    adminNote: "",
-    createdAt: new Date().toISOString(),
-    reviewedAt: null,
-  };
-  store.requests.push(loanRequest);
-  store.bookings.push({
-    id: randomUUID(),
-    itemId,
-    requestId,
-    startDate,
-    endDate,
-    quantity: qty,
-    status: "pending",
-  });
+  const loanRequest = await createRequestWithBooking(
+    {
+      id: requestId,
+      itemId,
+      userId: user.id,
+      requesterName: user.name,
+      requesterEmail: user.email,
+      requesterOrganisation: user.organisation,
+      requesterPhone: user.phone,
+      startDate,
+      endDate,
+      quantity: qty,
+      notes: notes ? String(notes).trim() : "",
+      status: "pending" as const,
+      adminNote: "",
+      createdAt: new Date().toISOString(),
+      reviewedAt: null,
+    },
+    {
+      id: randomUUID(),
+      itemId,
+      requestId,
+      startDate,
+      endDate,
+      quantity: qty,
+      status: "pending",
+    }
+  );
 
   return NextResponse.json({ request: loanRequest }, { status: 201 });
 }

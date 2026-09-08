@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/data/store";
+import { createItem, getAllItemsAdmin, itemIdExists } from "@/lib/data/queries";
 import { requireAdmin } from "@/lib/auth";
 import { CATEGORIES, type Category } from "@/lib/types";
 
@@ -15,7 +15,7 @@ export async function GET() {
   const auth = await requireAdmin();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  return NextResponse.json({ items: store.items });
+  return NextResponse.json({ items: await getAllItemsAdmin() });
 }
 
 export async function POST(request: NextRequest) {
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
   const baseSlug = slugify(String(name)) || "item";
   let id = baseSlug;
   let suffix = 1;
-  while (store.items.some((i) => i.id === id)) {
+  while (await itemIdExists(id)) {
     suffix += 1;
     id = `${baseSlug}-${suffix}`;
   }
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     ? images.filter((src): src is string => typeof src === "string" && src.trim().length > 0)
     : [];
 
-  const item = {
+  const item = await createItem({
     id,
     name: String(name).trim(),
     category: category as Category,
@@ -69,8 +69,7 @@ export async function POST(request: NextRequest) {
     bookingConditions: bookingConditions ? String(bookingConditions).trim() : "",
     cancellationRules: cancellationRules ? String(cancellationRules).trim() : "",
     retired: false,
-  };
-  store.items.push(item);
+  });
 
   return NextResponse.json({ item }, { status: 201 });
 }

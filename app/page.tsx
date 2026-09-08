@@ -1,10 +1,14 @@
 import Link from "next/link";
-import { store } from "@/lib/data/store";
+import { getActiveItems } from "@/lib/data/queries";
 import { CATEGORIES } from "@/lib/types";
 import EquipmentCard from "@/components/EquipmentCard";
 
-export default function Home() {
-  const activeItems = store.items.filter((item) => !item.retired);
+// Reads live inventory from Postgres on every request — without this it would be
+// baked into a static page at build time and go stale until the next deploy.
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  const activeItems = await getActiveItems();
 
   const categoryCounts = CATEGORIES.reduce<Record<string, number>>((acc, category) => {
     acc[category] = activeItems.filter((item) => item.category === category).length;

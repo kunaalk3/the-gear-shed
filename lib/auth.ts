@@ -1,34 +1,65 @@
 import { cookies } from "next/headers";
-import { randomUUID } from "crypto";
-import { store } from "@/lib/data/store";
+import { createHmac, timingSafeEqual } from "crypto";
+import { getUserById } from "@/lib/data/queries";
 import type { PublicUser, User } from "@/lib/types";
 
-export const SESSION_COOKIE_NAME = "gearshare_session";
+export const SESSION_COOKIE_NAME = "sharespace_session";
+export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 7; // 7 days, matches the previous cookie maxAge
 
 export { hashPassword } from "@/lib/password";
+
+function getSecret(): string {
+  const secret = process.env.AUTH_SECRET;
+  if (!secret) throw new Error("AUTH_SECRET is not set");
+  return secret;
+}
+
+function sign(payload: string): string {
+  return createHmac("sha256", getSecret()).update(payload).digest("base64url");
+}
 
 export function toPublicUser(user: User): PublicUser {
   const { passwordHash: _passwordHash, ...publicUser } = user;
   return publicUser;
 }
 
-export function createSession(userId: string): string {
-  const token = randomUUID();
-  store.sessions.set(token, userId);
-  return token;
+/**
+ * Stateless session token: base64url(payload).signature — no server-side session
+ * table, so auth survives serverless cold starts instead of living in a Map.
+ */
+export function createSessionToken(userId: string): string {
+  const exp = Date.now() + SESSION_MAX_AGE_SECONDS * 1000;
+  const payload = Buffer.from(JSON.stringify({ userId, exp })).toString("base64url");
+  return `${payload}.${sign(payload)}`;
 }
 
-export function destroySession(token: string | undefined) {
-  if (token) store.sessions.delete(token);
+function verifySessionToken(token: string): { userId: string } | null {
+  const [payload, signature] = token.split(".");
+  if (!payload || !signature) return null;
+
+  const expected = sign(payload);
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
+  try {
+    const { userId, exp } = JSON.parse(Buffer.from(payload, "base64url").toString());
+    if (typeof userId !== "string" || typeof exp !== "number" || Date.now() > exp) return null;
+    return { userId };
+  } catch {
+    return null;
+  }
 }
 
 export async function getCurrentUser(): Promise<PublicUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   if (!token) return null;
-  const userId = store.sessions.get(token);
-  if (!userId) return null;
-  const user = store.users.find((u) => u.id === userId);
+
+  const session = verifySessionToken(token);
+  if (!session) return null;
+
+  const user = await getUserById(session.userId);
   return user ? toPublicUser(user) : null;
 }
 

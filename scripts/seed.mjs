@@ -1,17 +1,60 @@
-import type {
-  BlackoutPeriod,
-  Booking,
-  EquipmentItem,
-  LoanRequest,
-  User,
-} from "@/lib/types";
-import { hashPassword } from "@/lib/password";
+import { neon } from "@neondatabase/serverless";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { createHash } from "crypto";
+import path from "path";
 
-function img(seed: string) {
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+function loadEnvLocal() {
+  const envPath = path.join(__dirname, "..", ".env.local");
+  const content = readFileSync(envPath, "utf8");
+  for (const line of content.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eq = trimmed.indexOf("=");
+    if (eq === -1) continue;
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
+  }
+}
+
+loadEnvLocal();
+
+const url = process.env.DATABASE_URL;
+if (!url) {
+  console.error("DATABASE_URL missing from .env.local");
+  process.exit(1);
+}
+
+const sql = neon(url);
+
+function hashPassword(password) {
+  return createHash("sha256").update(password).digest("hex");
+}
+
+function img(seed) {
   return `https://picsum.photos/seed/${seed}/640/480`;
 }
 
-const rawSeedItems: Omit<EquipmentItem, "retired">[] = [
+function addDays(d, n) {
+  const copy = new Date(d);
+  copy.setDate(copy.getDate() + n);
+  return copy;
+}
+
+function iso(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+const items = [
   {
     id: "marquee-pole-6x3",
     name: "6x3m Pole Marquee (White)",
@@ -180,145 +223,137 @@ const rawSeedItems: Omit<EquipmentItem, "retired">[] = [
   },
 ];
 
-const seedItems: EquipmentItem[] = rawSeedItems.map((item) => ({ ...item, retired: false }));
-
-interface Store {
-  items: EquipmentItem[];
-  users: User[];
-  bookings: Booking[];
-  requests: LoanRequest[];
-  blackouts: BlackoutPeriod[];
-  sessions: Map<string, string>; // token -> userId
+for (const item of items) {
+  await sql`
+    insert into equipment_items (id, name, category, description, images, total_quantity, deposit_required, booking_conditions, cancellation_rules, retired)
+    values (${item.id}, ${item.name}, ${item.category}, ${item.description}, ${item.images}, ${item.totalQuantity}, ${item.depositRequired}, ${item.bookingConditions}, ${item.cancellationRules}, false)
+    on conflict (id) do nothing
+  `;
 }
 
-function addDays(d: Date, n: number) {
-  const copy = new Date(d);
-  copy.setDate(copy.getDate() + n);
-  return copy;
+const users = [
+  {
+    id: "seed-user-admin",
+    name: "Alex Ferraro",
+    email: "admin@communityresourcenetwork.org.au",
+    passwordHash: hashPassword("admin123"),
+    organisation: "Community Resource Network SA",
+    phone: "",
+    role: "admin",
+  },
+  {
+    id: "seed-user-requester",
+    name: "Sam Wilson",
+    email: "sam.wilson@example.com",
+    passwordHash: hashPassword("password123"),
+    organisation: "Westside Football Club",
+    phone: "0400 111 222",
+    role: "requester",
+  },
+];
+
+for (const user of users) {
+  await sql`
+    insert into users (id, name, email, password_hash, organisation, phone, role)
+    values (${user.id}, ${user.name}, ${user.email}, ${user.passwordHash}, ${user.organisation}, ${user.phone}, ${user.role})
+    on conflict (id) do nothing
+  `;
 }
 
-function iso(d: Date) {
-  return d.toISOString().slice(0, 10);
+const today = new Date();
+
+const bookings = [
+  {
+    id: "seed-booking-1",
+    itemId: "marquee-pole-6x3",
+    requestId: "seed-legacy-1",
+    startDate: iso(addDays(today, 5)),
+    endDate: iso(addDays(today, 7)),
+    quantity: 3,
+    status: "approved",
+  },
+  {
+    id: "seed-booking-2",
+    itemId: "pa-system-portable",
+    requestId: "seed-legacy-2",
+    startDate: iso(addDays(today, 10)),
+    endDate: iso(addDays(today, 10)),
+    quantity: 2,
+    status: "approved",
+  },
+  {
+    id: "seed-booking-3",
+    itemId: "bbq-trailer-lpg",
+    requestId: "seed-legacy-3",
+    startDate: iso(addDays(today, 3)),
+    endDate: iso(addDays(today, 4)),
+    quantity: 2,
+    status: "pending",
+  },
+  {
+    id: "seed-booking-demo",
+    itemId: "cricket-kit-full",
+    requestId: "seed-request-demo",
+    startDate: iso(addDays(today, 12)),
+    endDate: iso(addDays(today, 13)),
+    quantity: 1,
+    status: "pending",
+  },
+];
+
+const requests = [
+  {
+    id: "seed-request-demo",
+    itemId: "cricket-kit-full",
+    userId: "seed-user-requester",
+    requesterName: "Sam Wilson",
+    requesterEmail: "sam.wilson@example.com",
+    requesterOrganisation: "Westside Football Club",
+    requesterPhone: "0400 111 222",
+    startDate: iso(addDays(today, 12)),
+    endDate: iso(addDays(today, 13)),
+    quantity: 1,
+    notes: "For our Sunday junior training day.",
+    status: "pending",
+    adminNote: "",
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+  },
+];
+
+const blackouts = [
+  {
+    id: "seed-blackout-1",
+    itemId: "netball-hoop-set",
+    startDate: iso(addDays(today, 1)),
+    endDate: iso(addDays(today, 2)),
+    reason: "Base repair — cracked wheel housing.",
+    createdAt: new Date().toISOString(),
+  },
+];
+
+for (const r of requests) {
+  await sql`
+    insert into loan_requests (id, item_id, user_id, requester_name, requester_email, requester_organisation, requester_phone, start_date, end_date, quantity, notes, status, admin_note, created_at, reviewed_at)
+    values (${r.id}, ${r.itemId}, ${r.userId}, ${r.requesterName}, ${r.requesterEmail}, ${r.requesterOrganisation}, ${r.requesterPhone}, ${r.startDate}, ${r.endDate}, ${r.quantity}, ${r.notes}, ${r.status}, ${r.adminNote}, ${r.createdAt}, ${r.reviewedAt})
+    on conflict (id) do nothing
+  `;
 }
 
-function seedUsers(): User[] {
-  return [
-    {
-      id: "seed-user-admin",
-      name: "Alex Ferraro",
-      email: "admin@communityresourcenetwork.org.au",
-      passwordHash: hashPassword("admin123"),
-      organisation: "Community Resource Network SA",
-      phone: "",
-      role: "admin",
-    },
-    {
-      id: "seed-user-requester",
-      name: "Sam Wilson",
-      email: "sam.wilson@example.com",
-      passwordHash: hashPassword("password123"),
-      organisation: "Westside Football Club",
-      phone: "0400 111 222",
-      role: "requester",
-    },
-  ];
+for (const b of bookings) {
+  await sql`
+    insert into bookings (id, item_id, request_id, start_date, end_date, quantity, status)
+    values (${b.id}, ${b.itemId}, ${b.requestId}, ${b.startDate}, ${b.endDate}, ${b.quantity}, ${b.status})
+    on conflict (id) do nothing
+  `;
 }
 
-function seedBookings(items: EquipmentItem[]): Booking[] {
-  const today = new Date();
-  const marquee = items.find((i) => i.id === "marquee-pole-6x3")!;
-  const pa = items.find((i) => i.id === "pa-system-portable")!;
-  const bbq = items.find((i) => i.id === "bbq-trailer-lpg")!;
-
-  return [
-    {
-      id: "seed-booking-1",
-      itemId: marquee.id,
-      requestId: "seed-legacy-1",
-      startDate: iso(addDays(today, 5)),
-      endDate: iso(addDays(today, 7)),
-      quantity: 3,
-      status: "approved",
-    },
-    {
-      id: "seed-booking-2",
-      itemId: pa.id,
-      requestId: "seed-legacy-2",
-      startDate: iso(addDays(today, 10)),
-      endDate: iso(addDays(today, 10)),
-      quantity: 2,
-      status: "approved",
-    },
-    {
-      id: "seed-booking-3",
-      itemId: bbq.id,
-      requestId: "seed-legacy-3",
-      startDate: iso(addDays(today, 3)),
-      endDate: iso(addDays(today, 4)),
-      quantity: 2,
-      status: "pending",
-    },
-    {
-      id: "seed-booking-demo",
-      itemId: "cricket-kit-full",
-      requestId: "seed-request-demo",
-      startDate: iso(addDays(today, 12)),
-      endDate: iso(addDays(today, 13)),
-      quantity: 1,
-      status: "pending",
-    },
-  ];
+for (const b of blackouts) {
+  await sql`
+    insert into blackout_periods (id, item_id, start_date, end_date, reason, created_at)
+    values (${b.id}, ${b.itemId}, ${b.startDate}, ${b.endDate}, ${b.reason}, ${b.createdAt})
+    on conflict (id) do nothing
+  `;
 }
 
-function seedRequests(): LoanRequest[] {
-  const today = new Date();
-  return [
-    {
-      id: "seed-request-demo",
-      itemId: "cricket-kit-full",
-      userId: "seed-user-requester",
-      requesterName: "Sam Wilson",
-      requesterEmail: "sam.wilson@example.com",
-      requesterOrganisation: "Westside Football Club",
-      requesterPhone: "0400 111 222",
-      startDate: iso(addDays(today, 12)),
-      endDate: iso(addDays(today, 13)),
-      quantity: 1,
-      notes: "For our Sunday junior training day.",
-      status: "pending",
-      adminNote: "",
-      createdAt: new Date().toISOString(),
-      reviewedAt: null,
-    },
-  ];
-}
-
-function seedBlackouts(): BlackoutPeriod[] {
-  const today = new Date();
-  return [
-    {
-      id: "seed-blackout-1",
-      itemId: "netball-hoop-set",
-      startDate: iso(addDays(today, 1)),
-      endDate: iso(addDays(today, 2)),
-      reason: "Base repair — cracked wheel housing.",
-      createdAt: new Date().toISOString(),
-    },
-  ];
-}
-
-function createStore(): Store {
-  return {
-    items: seedItems,
-    users: seedUsers(),
-    bookings: seedBookings(seedItems),
-    requests: seedRequests(),
-    blackouts: seedBlackouts(),
-    sessions: new Map(),
-  };
-}
-
-// Survives Next.js dev-server hot reloads by hanging the store off globalThis.
-const globalForStore = globalThis as unknown as { __gearShareStore?: Store };
-export const store: Store = globalForStore.__gearShareStore ?? createStore();
-globalForStore.__gearShareStore = store;
+console.log(`Seeded ${items.length} items, ${users.length} users, ${requests.length} requests, ${bookings.length} bookings, ${blackouts.length} blackouts.`);

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { store } from "@/lib/data/store";
+import { getItemById, retireItem, updateItem } from "@/lib/data/queries";
 import { requireAdmin } from "@/lib/auth";
-import { CATEGORIES, type Category } from "@/lib/types";
+import { CATEGORIES, type Category, type EquipmentItem } from "@/lib/types";
 
 export async function PATCH(
   request: NextRequest,
@@ -11,7 +11,7 @@ export async function PATCH(
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id } = await params;
-  const item = store.items.find((i) => i.id === id);
+  const item = await getItemById(id, { includeRetired: true });
   if (!item) return NextResponse.json({ error: "Item not found." }, { status: 404 });
 
   const body = await request.json().catch(() => null);
@@ -29,22 +29,24 @@ export async function PATCH(
     retired,
   } = body;
 
-  if (name !== undefined) item.name = String(name).trim();
+  const patch: Partial<Omit<EquipmentItem, "id">> = {};
+
+  if (name !== undefined) patch.name = String(name).trim();
 
   if (category !== undefined) {
     if (!CATEGORIES.includes(category)) {
       return NextResponse.json({ error: "Invalid category." }, { status: 400 });
     }
-    item.category = category as Category;
+    patch.category = category as Category;
   }
 
-  if (description !== undefined) item.description = String(description).trim();
+  if (description !== undefined) patch.description = String(description).trim();
 
   if (images !== undefined) {
     const imageList = Array.isArray(images)
       ? images.filter((src): src is string => typeof src === "string" && src.trim().length > 0)
       : [];
-    if (imageList.length) item.images = imageList;
+    if (imageList.length) patch.images = imageList;
   }
 
   if (totalQuantity !== undefined) {
@@ -52,7 +54,7 @@ export async function PATCH(
     if (!Number.isInteger(qty) || qty < 1) {
       return NextResponse.json({ error: "Quantity must be at least 1." }, { status: 400 });
     }
-    item.totalQuantity = qty;
+    patch.totalQuantity = qty;
   }
 
   if (depositRequired !== undefined) {
@@ -60,14 +62,15 @@ export async function PATCH(
     if (Number.isNaN(deposit) || deposit < 0) {
       return NextResponse.json({ error: "Deposit can't be negative." }, { status: 400 });
     }
-    item.depositRequired = deposit;
+    patch.depositRequired = deposit;
   }
 
-  if (bookingConditions !== undefined) item.bookingConditions = String(bookingConditions).trim();
-  if (cancellationRules !== undefined) item.cancellationRules = String(cancellationRules).trim();
-  if (retired !== undefined) item.retired = Boolean(retired);
+  if (bookingConditions !== undefined) patch.bookingConditions = String(bookingConditions).trim();
+  if (cancellationRules !== undefined) patch.cancellationRules = String(cancellationRules).trim();
+  if (retired !== undefined) patch.retired = Boolean(retired);
 
-  return NextResponse.json({ item });
+  const updated = await updateItem(id, patch);
+  return NextResponse.json({ item: updated });
 }
 
 export async function DELETE(
@@ -78,9 +81,8 @@ export async function DELETE(
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id } = await params;
-  const item = store.items.find((i) => i.id === id);
+  const item = await retireItem(id);
   if (!item) return NextResponse.json({ error: "Item not found." }, { status: 404 });
 
-  item.retired = true;
   return NextResponse.json({ item });
 }
