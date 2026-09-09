@@ -18,6 +18,7 @@ function RegisterFormInner() {
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [role, setRole] = useState<"requester" | "org">("requester");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -34,7 +35,7 @@ function RegisterFormInner() {
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, organisation, email, phone, password }),
+      body: JSON.stringify({ name, organisation, email, phone, password, role }),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -53,7 +54,24 @@ function RegisterFormInner() {
       <p className="font-tag text-xs uppercase tracking-widest text-pine/70">Join the network</p>
       <h1 className="mt-1 font-display text-3xl font-bold text-pine">Create an account</h1>
 
-      <form onSubmit={handleSubmit} className="gear-tag mt-6 flex flex-col gap-4 p-6">
+      <div className="mt-6 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setRole("requester")}
+          className={roleButton(role === "requester")}
+        >
+          I&rsquo;m borrowing equipment
+        </button>
+        <button
+          type="button"
+          onClick={() => setRole("org")}
+          className={roleButton(role === "org")}
+        >
+          I&rsquo;m registering an organisation
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="gear-tag mt-4 flex flex-col gap-4 p-6">
         <FormField
           label="Your name"
           type="text"
@@ -63,10 +81,15 @@ function RegisterFormInner() {
           onChange={(e) => setName(e.target.value)}
         />
         <FormField
-          label="Group or organisation"
+          label={role === "org" ? "Organisation name" : "Group or organisation"}
           type="text"
           autoComplete="organization"
           required
+          hint={
+            role === "org"
+              ? "An admin will review and approve your organisation before you can list equipment."
+              : undefined
+          }
           value={organisation}
           onChange={(e) => setOrganisation(e.target.value)}
         />
@@ -135,4 +158,10 @@ export default function RegisterPage() {
       <RegisterFormInner />
     </Suspense>
   );
+}
+
+function roleButton(active: boolean) {
+  return `transition-standard rounded-full border px-4 py-1.5 font-tag text-xs uppercase tracking-wide ${
+    active ? "border-pine bg-pine text-canvas" : "border-canvas-line text-ink/70 hover:border-pine hover:text-pine"
+  }`;
 }

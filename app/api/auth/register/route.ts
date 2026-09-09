@@ -5,7 +5,8 @@ import { createSessionToken, hashPassword, toPublicUser, SESSION_COOKIE_NAME, SE
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
-  const { name, email, password, organisation, phone } = body ?? {};
+  const { name, email, password, organisation, phone, role } = body ?? {};
+  const requestedRole: "requester" | "org" = role === "org" ? "org" : "requester";
 
   if (!name || !email || !password || !organisation) {
     return NextResponse.json(
@@ -29,8 +30,8 @@ export async function POST(request: NextRequest) {
     passwordHash: hashPassword(String(password)),
     organisation: String(organisation).trim(),
     phone: phone ? String(phone).trim() : "",
-    role: "requester" as const,
-    orgStatus: "approved" as const,
+    role: requestedRole,
+    orgStatus: requestedRole === "org" ? "pending" : "approved",
   });
 
   const token = createSessionToken(user.id);
