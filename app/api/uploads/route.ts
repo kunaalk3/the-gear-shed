@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireOrg } from "@/lib/auth";
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB
 const ALLOWED_TYPES: Record<string, string> = {
@@ -12,7 +12,8 @@ const ALLOWED_TYPES: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const admin = await requireAdmin();
+  const auth = admin.ok ? admin : await requireOrg();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const formData = await request.formData().catch(() => null);

@@ -44,6 +44,10 @@ export default function Header() {
                 >
                   Admin
                 </Link>
+              ) : user.role === "org" ? (
+                <Link href="/org/items" className="hidden transition-standard hover:text-amber sm:inline">
+                  Our items
+                </Link>
               ) : (
                 <Link href="/my-requests" className="hidden transition-standard hover:text-amber sm:inline">
                   My requests
