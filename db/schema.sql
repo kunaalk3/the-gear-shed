@@ -9,7 +9,8 @@ create table if not exists users (
   password_hash text not null,
   organisation text not null default '',
   phone text not null default '',
-  role text not null check (role in ('requester', 'admin'))
+  role text not null check (role in ('requester', 'admin', 'org')),
+  org_status text not null default 'approved' check (org_status in ('pending', 'approved', 'rejected'))
 );
 
 create table if not exists equipment_items (
@@ -22,7 +23,8 @@ create table if not exists equipment_items (
   deposit_required integer not null default 0,
   booking_conditions text not null default '',
   cancellation_rules text not null default '',
-  retired boolean not null default false
+  retired boolean not null default false,
+  owner_id text references users(id)
 );
 
 create table if not exists blackout_periods (
