@@ -24,6 +24,7 @@ export interface EquipmentItem {
   bookingConditions: string;
   cancellationRules: string;
   retired: boolean;
+  ownerId: string | null;
 }
 
 export type BookingStatus = "pending" | "approved";
@@ -47,7 +48,9 @@ export interface BlackoutPeriod {
   createdAt: string;
 }
 
-export type UserRole = "requester" | "admin";
+export type OrgStatus = "pending" | "approved" | "rejected";
+
+export type UserRole = "requester" | "admin" | "org";
 
 export interface User {
   id: string;
@@ -57,6 +60,7 @@ export interface User {
   organisation: string;
   phone: string;
   role: UserRole;
+  orgStatus: OrgStatus;
 }
 
 export type PublicUser = Omit<User, "passwordHash">;

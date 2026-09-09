@@ -6,6 +6,7 @@ import type {
   EquipmentItem,
   LoanRequest,
   LoanRequestStatus,
+  OrgStatus,
   User,
 } from "@/lib/types";
 
@@ -26,6 +27,7 @@ function mapItem(row: Row): EquipmentItem {
     bookingConditions: row.booking_conditions as string,
     cancellationRules: row.cancellation_rules as string,
     retired: row.retired as boolean,
+    ownerId: (row.owner_id as string | null) ?? null,
   };
 }
 
@@ -38,6 +40,7 @@ function mapUser(row: Row): User {
     organisation: row.organisation as string,
     phone: row.phone as string,
     role: row.role as User["role"],
+    orgStatus: row.org_status as User["orgStatus"],
   };
 }
 
@@ -134,6 +137,11 @@ export async function getItemById(
   return rows[0] ? mapItem(rows[0]) : null;
 }
 
+export async function getItemsForOwner(ownerId: string): Promise<EquipmentItem[]> {
+  const rows = await sql`select * from equipment_items where owner_id = ${ownerId} order by name`;
+  return rows.map(mapItem);
+}
+
 export async function itemIdExists(id: string): Promise<boolean> {
   const rows = await sql`select 1 from equipment_items where id = ${id}`;
   return rows.length > 0;
@@ -142,10 +150,10 @@ export async function itemIdExists(id: string): Promise<boolean> {
 export async function createItem(item: EquipmentItem): Promise<EquipmentItem> {
   const rows = await sql`
     insert into equipment_items
-      (id, name, category, description, images, total_quantity, deposit_required, booking_conditions, cancellation_rules, retired)
+      (id, name, category, description, images, total_quantity, deposit_required, booking_conditions, cancellation_rules, retired, owner_id)
     values
       (${item.id}, ${item.name}, ${item.category}, ${item.description}, ${item.images},
-       ${item.totalQuantity}, ${item.depositRequired}, ${item.bookingConditions}, ${item.cancellationRules}, ${item.retired})
+       ${item.totalQuantity}, ${item.depositRequired}, ${item.bookingConditions}, ${item.cancellationRules}, ${item.retired}, ${item.ownerId})
     returning *
   `;
   return mapItem(rows[0]);
@@ -195,10 +203,39 @@ export async function getUserById(id: string): Promise<User | null> {
 
 export async function createUser(user: User): Promise<User> {
   await sql`
-    insert into users (id, name, email, password_hash, organisation, phone, role)
-    values (${user.id}, ${user.name}, ${user.email}, ${user.passwordHash}, ${user.organisation}, ${user.phone}, ${user.role})
+    insert into users (id, name, email, password_hash, organisation, phone, role, org_status)
+    values (${user.id}, ${user.name}, ${user.email}, ${user.passwordHash}, ${user.organisation}, ${user.phone}, ${user.role}, ${user.orgStatus})
   `;
   return user;
+}
+
+// ---- organisation accounts ----
+
+export async function getOrgAccounts(status?: OrgStatus | null): Promise<User[]> {
+  const rows = status
+    ? await sql`select * from users where role = 'org' and org_status = ${status} order by name`
+    : await sql`select * from users where role = 'org' order by name`;
+  return rows.map(mapUser);
+}
+
+/** Marks a pending org account approved. Returns null if it wasn't pending. */
+export async function approveOrg(id: string): Promise<User | null> {
+  const rows = await sql`
+    update users set org_status = 'approved'
+    where id = ${id} and role = 'org' and org_status = 'pending'
+    returning *
+  `;
+  return rows[0] ? mapUser(rows[0]) : null;
+}
+
+/** Marks a pending org account rejected. Returns null if it wasn't pending. */
+export async function rejectOrg(id: string): Promise<User | null> {
+  const rows = await sql`
+    update users set org_status = 'rejected'
+    where id = ${id} and role = 'org' and org_status = 'pending'
+    returning *
+  `;
+  return rows[0] ? mapUser(rows[0]) : null;
 }
 
 // ---- bookings ----

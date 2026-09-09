@@ -30,6 +30,7 @@ export async function POST(request: NextRequest) {
     organisation: String(organisation).trim(),
     phone: phone ? String(phone).trim() : "",
     role: "requester" as const,
+    orgStatus: "approved" as const,
   });
 
   const token = createSessionToken(user.id);

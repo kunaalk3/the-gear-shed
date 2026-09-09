@@ -69,6 +69,7 @@ export async function POST(request: NextRequest) {
     bookingConditions: bookingConditions ? String(bookingConditions).trim() : "",
     cancellationRules: cancellationRules ? String(cancellationRules).trim() : "",
     retired: false,
+    ownerId: null,
   });
 
   return NextResponse.json({ item }, { status: 201 });

@@ -73,3 +73,20 @@ export async function requireAdmin(): Promise<AdminCheck> {
   if (user.role !== "admin") return { ok: false, status: 403, error: "Admin access required." };
   return { ok: true, user };
 }
+
+type OrgCheck =
+  | { ok: true; user: PublicUser }
+  | { ok: false; status: 401 | 403; error: string };
+
+export async function requireOrg(): Promise<OrgCheck> {
+  const user = await getCurrentUser();
+  if (!user) return { ok: false, status: 401, error: "Log in to continue." };
+  if (user.role !== "org") return { ok: false, status: 403, error: "Organisation access required." };
+  if (user.orgStatus === "pending") {
+    return { ok: false, status: 403, error: "Your organisation is still awaiting admin approval." };
+  }
+  if (user.orgStatus === "rejected") {
+    return { ok: false, status: 403, error: "Your organisation's application wasn't approved." };
+  }
+  return { ok: true, user };
+}
