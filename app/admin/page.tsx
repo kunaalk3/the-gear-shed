@@ -24,6 +24,7 @@ export default function AdminOverviewPage() {
   const { ready, user } = useRequireUser({ role: "admin" });
   const [requests, setRequests] = useState<RequestWithItem[]>([]);
   const [items, setItems] = useState<AdminItem[]>([]);
+  const [pendingOrgCount, setPendingOrgCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -31,10 +32,12 @@ export default function AdminOverviewPage() {
     Promise.all([
       fetch("/api/admin/requests").then((r) => r.json()),
       fetch("/api/admin/items").then((r) => r.json()),
+      fetch("/api/admin/organisations?status=pending").then((r) => r.json()),
     ])
-      .then(([reqData, itemData]) => {
+      .then(([reqData, itemData, orgData]) => {
         setRequests(reqData.requests ?? []);
         setItems(itemData.items ?? []);
+        setPendingOrgCount((orgData.organisations ?? []).length);
       })
       .finally(() => setLoading(false));
   }, [ready]);
@@ -72,7 +75,7 @@ export default function AdminOverviewPage() {
         <p className="mt-8 font-tag text-sm uppercase tracking-wide text-ink/50">Loading…</p>
       ) : (
         <>
-          <div className="mt-8 grid gap-4 sm:grid-cols-3">
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <StatCard label="Pending requests" value={pending.length} href="/admin/requests" />
             <StatCard
               label="Pickups in the next 7 days"
@@ -80,6 +83,7 @@ export default function AdminOverviewPage() {
               href="/admin/requests"
             />
             <StatCard label="Active items in the shed" value={activeItemCount} href="/admin/items" />
+            <StatCard label="Pending organisations" value={pendingOrgCount} href="/admin/organisations" />
           </div>
 
           <div className="mt-10">
