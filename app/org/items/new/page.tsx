@@ -2,6 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useAuth } from "@/lib/auth-context";
 import { useRequireUser } from "@/lib/use-require-user";
 import { FormField, FormTextarea } from "@/components/FormField";
 import { ImagePicker } from "@/components/ImagePicker";
@@ -9,6 +11,7 @@ import { CATEGORIES, type Category } from "@/lib/types";
 
 export default function NewOrgItemPage() {
   const { ready } = useRequireUser({ role: "org" });
+  const { user } = useAuth();
   const router = useRouter();
 
   const [name, setName] = useState("");
@@ -22,7 +25,37 @@ export default function NewOrgItemPage() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  if (!ready) return <Loading />;
+  if (!ready || !user) return <Loading />;
+
+  if (user.orgStatus !== "approved") {
+    return (
+      <div className="mx-auto w-full max-w-2xl px-5 py-10">
+        <p className="font-tag text-xs uppercase tracking-widest text-pine/70">Our items</p>
+        <h1 className="mt-1 font-display text-4xl font-bold text-pine">Add an item</h1>
+
+        {user.orgStatus === "pending" && (
+          <p className="gear-tag mt-6 p-4 font-body text-sm text-ink/70">
+            Your organisation is awaiting admin approval. You&rsquo;ll be able to list equipment once
+            it&rsquo;s approved.
+          </p>
+        )}
+
+        {user.orgStatus === "rejected" && (
+          <p className="gear-tag mt-6 p-4 font-body text-sm text-brick">
+            Your organisation&rsquo;s application wasn&rsquo;t approved. Contact Community Resource
+            Network SA for details.
+          </p>
+        )}
+
+        <Link
+          href="/org/items"
+          className="mt-6 inline-block font-body text-sm font-semibold text-pine underline"
+        >
+          Back to Our items
+        </Link>
+      </div>
+    );
+  }
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
