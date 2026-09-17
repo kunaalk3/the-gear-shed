@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
+import AdminNotificationBadge from "@/components/AdminNotificationBadge";
 
 export default function Header() {
   const { user, loading, setUser } = useAuth();
@@ -20,7 +21,7 @@ export default function Header() {
       <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4">
         <Link href="/" className="flex items-baseline gap-2">
           <span className="font-display text-2xl font-bold uppercase tracking-tight text-canvas">
-            Community ShareSpace SA
+            ComRes
           </span>
           <span className="hidden font-tag text-[0.65rem] uppercase tracking-widest text-canvas/60 sm:inline">
             Community Resource Network SA
@@ -34,15 +35,19 @@ export default function Header() {
           <Link href="/#how-it-works" className="hidden transition-standard hover:text-amber sm:inline">
             How it works
           </Link>
+          <Link href="/feedback" className="hidden transition-standard hover:text-amber sm:inline">
+            Feedback
+          </Link>
 
           {loading ? null : user ? (
             <div className="flex items-center gap-3">
               {user.role === "admin" ? (
                 <Link
                   href="/admin"
-                  className="rounded-full border border-amber/60 px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-amber transition-standard hover:bg-amber hover:text-pine"
+                  className="relative rounded-full border border-amber/60 px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-amber transition-standard hover:bg-amber hover:text-pine"
                 >
                   Admin
+                  <AdminNotificationBadge />
                 </Link>
               ) : user.role === "org" ? (
                 <Link href="/org/items" className="hidden transition-standard hover:text-amber sm:inline">

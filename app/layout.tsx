@@ -23,9 +23,9 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Community ShareSpace SA | Community Resource Network SA",
+  title: "ComRes | Community Resource Network SA",
   description:
-    "Borrow marquees, tables, audio gear, sporting equipment and cooking facilities from Community Resource Network SA.",
+    "Borrow or hire marquees, tables, audio gear, sporting equipment and cooking facilities from Community Resource Network SA.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

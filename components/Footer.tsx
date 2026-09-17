@@ -6,10 +6,10 @@ export default function Footer() {
     <footer className="mt-auto border-t border-canvas-line bg-canvas-dark">
       <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 sm:grid-cols-3">
         <div>
-          <p className="font-display text-lg font-bold uppercase text-pine">Community ShareSpace SA</p>
+          <p className="font-display text-lg font-bold uppercase text-pine">ComRes</p>
           <p className="mt-2 max-w-xs font-body text-sm text-ink/70">
             A shared equipment library run by Community Resource Network SA, so local
-            groups can borrow instead of buy.
+            groups can borrow or hire instead of buy.
           </p>
         </div>
 
@@ -36,6 +36,12 @@ export default function Footer() {
             <br />
             hello@communityresourcenetwork.org.au
           </p>
+          <Link
+            href="/feedback"
+            className="mt-2 inline-block font-body text-sm font-semibold text-pine underline underline-offset-2"
+          >
+            Share feedback
+          </Link>
         </div>
       </div>
     </footer>

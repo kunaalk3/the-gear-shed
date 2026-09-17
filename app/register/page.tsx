@@ -60,7 +60,7 @@ function RegisterFormInner() {
           onClick={() => setRole("requester")}
           className={roleButton(role === "requester")}
         >
-          I&rsquo;m borrowing equipment
+          I&rsquo;m borrowing or hiring equipment
         </button>
         <button
           type="button"

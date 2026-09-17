@@ -7,7 +7,7 @@ import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const item = await getItemById(id);
-  return { title: item ? `${item.name} | Community ShareSpace SA` : "Not found | Community ShareSpace SA" };
+  return { title: item ? `${item.name} | ComRes` : "Not found | ComRes" };
 }
 
 export default async function ItemDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -88,12 +88,12 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
           >
             Request to loan this →
           </Link>
-        </div>
-      </div>
 
-      <div className="mt-12 max-w-md">
-        <h2 className="mb-3 font-display text-xl font-bold text-pine">Check availability</h2>
-        <AvailabilityCalendar itemId={item.id} totalQuantity={item.totalQuantity} />
+          <div className="mt-8">
+            <h2 className="mb-3 font-display text-xl font-bold text-pine">Check availability</h2>
+            <AvailabilityCalendar itemId={item.id} totalQuantity={item.totalQuantity} />
+          </div>
+        </div>
       </div>
     </div>
   );

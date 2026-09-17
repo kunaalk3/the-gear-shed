@@ -9,6 +9,7 @@ const TABS: { label: string; value: OrgStatus | "all" }[] = [
   { label: "Pending", value: "pending" },
   { label: "Approved", value: "approved" },
   { label: "Rejected", value: "rejected" },
+  { label: "Retired", value: "retired" },
   { label: "All", value: "all" },
 ];
 
@@ -41,6 +42,13 @@ export default function AdminOrganisationsPage() {
   async function reject(id: string) {
     setBusyId(id);
     await fetch(`/api/admin/organisations/${id}/reject`, { method: "POST" });
+    setBusyId(null);
+    load();
+  }
+
+  async function retire(id: string) {
+    setBusyId(id);
+    await fetch(`/api/admin/organisations/${id}/retire`, { method: "POST" });
     setBusyId(null);
     load();
   }
@@ -104,6 +112,19 @@ export default function AdminOrganisationsPage() {
                   </button>
                 </div>
               )}
+
+              {o.orgStatus === "approved" && (
+                <div className="mt-3 flex gap-2 border-t border-dashed border-canvas-line pt-3">
+                  <button
+                    type="button"
+                    onClick={() => retire(o.id)}
+                    disabled={busyId === o.id}
+                    className="transition-standard rounded-full border border-canvas-line px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-ink/70 hover:border-pine hover:text-pine disabled:opacity-50"
+                  >
+                    Retire organisation
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
@@ -123,6 +144,7 @@ function StatusBadge({ status }: { status: OrgStatus }) {
     pending: "bg-amber/20 text-amber-dark",
     approved: "bg-moss/20 text-moss",
     rejected: "bg-brick/20 text-brick",
+    retired: "bg-ink/10 text-ink/60",
   };
   return (
     <span className={`w-fit shrink-0 rounded-full px-3 py-1 font-tag text-xs uppercase tracking-wide ${styles[status]}`}>

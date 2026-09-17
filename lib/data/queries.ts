@@ -4,6 +4,7 @@ import type {
   Booking,
   Category,
   EquipmentItem,
+  Feedback,
   LoanRequest,
   LoanRequestStatus,
   OrgStatus,
@@ -84,6 +85,18 @@ function mapRequest(row: Row): LoanRequest {
     adminNote: row.admin_note as string,
     createdAt: row.created_at as string,
     reviewedAt: (row.reviewed_at as string | null) ?? null,
+    termsAccepted: row.terms_accepted as boolean,
+    badHire: row.bad_hire as boolean,
+  };
+}
+
+function mapFeedback(row: Row): Feedback {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    email: row.email as string,
+    message: row.message as string,
+    createdAt: row.created_at as string,
   };
 }
 
@@ -238,6 +251,16 @@ export async function rejectOrg(id: string): Promise<User | null> {
   return rows[0] ? mapUser(rows[0]) : null;
 }
 
+/** Marks an approved org account retired. Returns null if it wasn't approved. */
+export async function retireOrg(id: string): Promise<User | null> {
+  const rows = await sql`
+    update users set org_status = 'retired'
+    where id = ${id} and role = 'org' and org_status = 'approved'
+    returning *
+  `;
+  return rows[0] ? mapUser(rows[0]) : null;
+}
+
 // ---- bookings ----
 
 export async function getBookingsForItem(itemId: string): Promise<Booking[]> {
@@ -328,12 +351,13 @@ export async function createRequestWithBooking(
   await sql`
     insert into loan_requests
       (id, item_id, user_id, requester_name, requester_email, requester_organisation, requester_phone,
-       start_date, end_date, quantity, notes, status, admin_note, created_at, reviewed_at)
+       start_date, end_date, quantity, notes, status, admin_note, created_at, reviewed_at, terms_accepted, bad_hire)
     values
       (${loanRequest.id}, ${loanRequest.itemId}, ${loanRequest.userId}, ${loanRequest.requesterName},
        ${loanRequest.requesterEmail}, ${loanRequest.requesterOrganisation}, ${loanRequest.requesterPhone},
        ${loanRequest.startDate}, ${loanRequest.endDate}, ${loanRequest.quantity}, ${loanRequest.notes},
-       ${loanRequest.status}, ${loanRequest.adminNote}, ${loanRequest.createdAt}, ${loanRequest.reviewedAt})
+       ${loanRequest.status}, ${loanRequest.adminNote}, ${loanRequest.createdAt}, ${loanRequest.reviewedAt},
+       ${loanRequest.termsAccepted}, ${loanRequest.badHire})
   `;
   await createBooking(booking);
   return loanRequest;
@@ -363,4 +387,29 @@ export async function declineRequest(id: string, note: string): Promise<LoanRequ
   if (!rows[0]) return null;
   await deleteBookingForRequest(id);
   return mapRequest(rows[0]);
+}
+
+/** Sets or clears the admin "bad hire" flag on a request, regardless of its status. */
+export async function setBadHire(id: string, badHire: boolean): Promise<LoanRequest | null> {
+  const rows = await sql`
+    update loan_requests set bad_hire = ${badHire}
+    where id = ${id}
+    returning *
+  `;
+  return rows[0] ? mapRequest(rows[0]) : null;
+}
+
+// ---- feedback ----
+
+export async function createFeedback(feedback: Feedback): Promise<Feedback> {
+  await sql`
+    insert into feedback (id, name, email, message, created_at)
+    values (${feedback.id}, ${feedback.name}, ${feedback.email}, ${feedback.message}, ${feedback.createdAt})
+  `;
+  return feedback;
+}
+
+export async function getAllFeedback(): Promise<Feedback[]> {
+  const rows = await sql`select * from feedback order by created_at desc`;
+  return rows.map(mapFeedback);
 }

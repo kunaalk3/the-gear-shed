@@ -17,6 +17,7 @@ interface RequestWithItem {
   notes: string;
   status: LoanRequestStatus;
   adminNote: string;
+  badHire: boolean;
 }
 
 const TABS: { label: string; value: LoanRequestStatus | "all" }[] = [
@@ -50,6 +51,17 @@ export default function AdminRequestsPage() {
   async function approve(id: string) {
     setBusyId(id);
     await fetch(`/api/admin/requests/${id}/approve`, { method: "POST" });
+    setBusyId(null);
+    load();
+  }
+
+  async function toggleBadHire(request: RequestWithItem) {
+    setBusyId(request.id);
+    await fetch(`/api/admin/requests/${request.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ badHire: !request.badHire }),
+    });
     setBusyId(null);
     load();
   }
@@ -110,7 +122,29 @@ export default function AdminRequestsPage() {
                     <p className="mt-1 font-body text-sm text-brick">Declined: {r.adminNote}</p>
                   )}
                 </div>
-                <StatusBadge status={r.status} />
+                <div className="flex shrink-0 flex-col items-end gap-2">
+                  <StatusBadge status={r.status} />
+                  {r.badHire && (
+                    <span className="w-fit rounded-full bg-brick px-3 py-1 font-tag text-xs uppercase tracking-wide text-canvas">
+                      ⚑ Bad hire
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-3 border-t border-dashed border-canvas-line pt-3">
+                <button
+                  type="button"
+                  onClick={() => toggleBadHire(r)}
+                  disabled={busyId === r.id}
+                  className={`transition-standard rounded-full border px-4 py-1.5 font-tag text-xs uppercase tracking-wide disabled:opacity-50 ${
+                    r.badHire
+                      ? "border-canvas-line text-ink/60 hover:border-pine hover:text-pine"
+                      : "border-brick text-brick hover:bg-brick hover:text-canvas"
+                  }`}
+                >
+                  {r.badHire ? "Clear bad hire flag" : "Flag as bad hire"}
+                </button>
               </div>
 
               {r.status === "pending" && (

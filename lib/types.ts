@@ -48,7 +48,7 @@ export interface BlackoutPeriod {
   createdAt: string;
 }
 
-export type OrgStatus = "pending" | "approved" | "rejected";
+export type OrgStatus = "pending" | "approved" | "rejected" | "retired";
 
 export type UserRole = "requester" | "admin" | "org";
 
@@ -83,4 +83,14 @@ export interface LoanRequest {
   adminNote: string;
   createdAt: string;
   reviewedAt: string | null;
+  termsAccepted: boolean;
+  badHire: boolean;
+}
+
+export interface Feedback {
+  id: string;
+  name: string;
+  email: string;
+  message: string;
+  createdAt: string;
 }

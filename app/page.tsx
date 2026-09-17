@@ -29,7 +29,7 @@ export default async function Home() {
               Community Resource Network SA
             </p>
             <h1 className="mt-3 font-display text-5xl leading-[0.95] font-bold uppercase text-pine sm:text-6xl">
-              Borrow what your event needs.
+              Borrow or hire what your event needs.
             </h1>
             <p className="mt-5 max-w-md font-body text-lg text-ink/70">
               Marquees, tables, sound gear, sporting kit and cooking equipment — shared
@@ -104,7 +104,7 @@ export default async function Home() {
           <Step
             n="02"
             title="Send a request"
-            body="Register a free account, pick your dates and quantity, and send the request."
+            body="Register a free account, pick your dates and quantity, agree to the terms, and send the request."
           />
           <Step
             n="03"

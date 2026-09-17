@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import EquipmentBrowser from "./EquipmentBrowser";
 
 export const metadata = {
-  title: "Browse equipment | Community ShareSpace SA",
+  title: "Browse equipment | ComRes",
 };
 
 export default function EquipmentPage() {

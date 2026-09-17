@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { put } from "@vercel/blob";
 import { randomUUID } from "crypto";
 import { requireAdmin, requireOrg } from "@/lib/auth";
+import { watermarkImage } from "@/lib/watermark";
 
 const MAX_FILE_BYTES = 8 * 1024 * 1024; // 8MB
 const ALLOWED_TYPES: Record<string, string> = {
@@ -32,7 +33,10 @@ export async function POST(request: NextRequest) {
   const extension = ALLOWED_TYPES[file.type];
   const filename = `${randomUUID()}.${extension}`;
 
-  const blob = await put(`uploads/${filename}`, file, {
+  const original = Buffer.from(await file.arrayBuffer());
+  const watermarked = await watermarkImage(original, file.type);
+
+  const blob = await put(`uploads/${filename}`, watermarked, {
     access: "public",
     contentType: file.type,
   });

@@ -14,11 +14,18 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json().catch(() => null);
-  const { itemId, startDate, endDate, quantity, notes } = body ?? {};
+  const { itemId, startDate, endDate, quantity, notes, termsAccepted } = body ?? {};
 
   if (!itemId || !startDate || !endDate || !quantity) {
     return NextResponse.json(
       { error: "Item, dates and quantity are required." },
+      { status: 400 }
+    );
+  }
+
+  if (termsAccepted !== true) {
+    return NextResponse.json(
+      { error: "You must agree to the terms and conditions to request this item." },
       { status: 400 }
     );
   }
@@ -81,6 +88,8 @@ export async function POST(request: NextRequest) {
       adminNote: "",
       createdAt: new Date().toISOString(),
       reviewedAt: null,
+      termsAccepted: true,
+      badHire: false,
     },
     {
       id: randomUUID(),

@@ -21,6 +21,7 @@ export default function RequestPage() {
   const [endDate, setEndDate] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [confirmation, setConfirmation] = useState<LoanRequest | null>(null);
@@ -41,12 +42,18 @@ export default function RequestPage() {
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+
+    if (!termsAccepted) {
+      setError("You must agree to the terms and conditions before sending a request.");
+      return;
+    }
+
     setSubmitting(true);
 
     const res = await fetch("/api/requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId: id, startDate, endDate, quantity, notes }),
+      body: JSON.stringify({ itemId: id, startDate, endDate, quantity, notes, termsAccepted }),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -150,6 +157,27 @@ export default function RequestPage() {
           Requesting as <strong>{user.name}</strong> · {user.organisation} · {user.email}
         </div>
 
+        <div className="rounded-lg border border-canvas-line bg-white/50 p-3 font-body text-xs text-ink/70">
+          <p className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/50">
+            Terms &amp; conditions
+          </p>
+          <ul className="mt-1.5 list-disc space-y-1 pl-4">
+            <li>Equipment must be returned by the agreed end date, in the condition it was collected.</li>
+            <li>Any deposit is refunded once the item is returned undamaged and on time.</li>
+            <li>Loss, damage or late return may be charged against the deposit or invoiced separately.</li>
+            <li>Community Resource Network SA may decline or cancel a request at its discretion.</li>
+          </ul>
+          <label className="mt-3 flex items-start gap-2 font-body text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-canvas-line text-pine focus-visible:ring-2 focus-visible:ring-pine"
+            />
+            I have read and agree to the terms and conditions above.
+          </label>
+        </div>
+
         {error && (
           <p role="alert" className="font-body text-sm text-brick">
             {error}
@@ -157,7 +185,7 @@ export default function RequestPage() {
         )}
 
         <button
-          disabled={submitting}
+          disabled={submitting || !termsAccepted}
           className="transition-standard mt-2 rounded-full bg-amber px-5 py-2.5 font-body font-semibold text-pine hover:bg-amber-dark disabled:opacity-60"
         >
           {submitting ? "Sending request…" : "Send loan request"}

@@ -10,7 +10,7 @@ create table if not exists users (
   organisation text not null default '',
   phone text not null default '',
   role text not null check (role in ('requester', 'admin', 'org')),
-  org_status text not null default 'approved' check (org_status in ('pending', 'approved', 'rejected'))
+  org_status text not null default 'approved' check (org_status in ('pending', 'approved', 'rejected', 'retired'))
 );
 
 create table if not exists equipment_items (
@@ -51,7 +51,17 @@ create table if not exists loan_requests (
   status text not null check (status in ('pending', 'approved', 'declined')),
   admin_note text not null default '',
   created_at text not null,
-  reviewed_at text
+  reviewed_at text,
+  terms_accepted boolean not null default false,
+  bad_hire boolean not null default false
+);
+
+create table if not exists feedback (
+  id text primary key,
+  name text not null,
+  email text not null,
+  message text not null,
+  created_at text not null
 );
 
 create table if not exists bookings (

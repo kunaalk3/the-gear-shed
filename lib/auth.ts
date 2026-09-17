@@ -88,5 +88,8 @@ export async function requireOrg(): Promise<OrgCheck> {
   if (user.orgStatus === "rejected") {
     return { ok: false, status: 403, error: "Your organisation's application wasn't approved." };
   }
+  if (user.orgStatus === "retired") {
+    return { ok: false, status: 403, error: "Your organisation account has been retired." };
+  }
   return { ok: true, user };
 }
