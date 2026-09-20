@@ -3,6 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRequestWithBooking, getBlackoutsForItem, getBookingsForItem, getItemById } from "@/lib/data/queries";
 import { getCurrentUser } from "@/lib/auth";
 import { isBlackedOut, maxReservedInRange } from "@/lib/availability";
+import { notifyAdmins, notifyUser } from "@/lib/notify";
+
+const CURRENT_TERMS_VERSION = "2026-09-20";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
@@ -89,6 +92,7 @@ export async function POST(request: NextRequest) {
       createdAt: new Date().toISOString(),
       reviewedAt: null,
       termsAccepted: true,
+      termsVersion: CURRENT_TERMS_VERSION,
       badHire: false,
     },
     {
@@ -101,6 +105,19 @@ export async function POST(request: NextRequest) {
       status: "pending",
     }
   );
+
+  // The owning organisation is the one who fields this request — the admin only
+  // handles requests for its own (admin-owned, ownerId null) inventory.
+  if (item.ownerId) {
+    await notifyUser(
+      item.ownerId,
+      "new_request",
+      `New request for ${item.name} from ${user.name}`,
+      "/org/requests"
+    );
+  } else {
+    await notifyAdmins("new_request", `New request for ${item.name} from ${user.name}`, "/admin/requests");
+  }
 
   return NextResponse.json({ request: loanRequest }, { status: 201 });
 }

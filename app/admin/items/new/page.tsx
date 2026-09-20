@@ -19,6 +19,8 @@ export default function NewItemPage() {
   const [depositRequired, setDepositRequired] = useState(0);
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
+  const [pickupNotes, setPickupNotes] = useState("");
+  const [dropoffNotes, setDropoffNotes] = useState("");
   const [images, setImages] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -41,6 +43,8 @@ export default function NewItemPage() {
         depositRequired,
         bookingConditions,
         cancellationRules,
+        pickupNotes,
+        dropoffNotes,
         images,
       }),
     });
@@ -64,7 +68,13 @@ export default function NewItemPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="gear-tag mt-6 flex flex-col gap-4 p-6">
-        <FormField label="Name" required value={name} onChange={(e) => setName(e.target.value)} />
+        <FormField
+          label="Name"
+          required
+          requiredMessage="Please enter this item's name."
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
 
         <label className="flex flex-col gap-1.5 font-body text-sm">
           <span className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/60">Category</span>
@@ -94,6 +104,7 @@ export default function NewItemPage() {
             type="number"
             min={1}
             required
+            requiredMessage="Please enter how many you have."
             value={totalQuantity}
             onChange={(e) => setTotalQuantity(Number(e.target.value))}
           />
@@ -118,6 +129,18 @@ export default function NewItemPage() {
           value={cancellationRules}
           onChange={(e) => setCancellationRules(e.target.value)}
         />
+        <div className="grid grid-cols-2 gap-4">
+          <FormField
+            label="Pickup preference"
+            value={pickupNotes}
+            onChange={(e) => setPickupNotes(e.target.value)}
+          />
+          <FormField
+            label="Drop-off preference"
+            value={dropoffNotes}
+            onChange={(e) => setDropoffNotes(e.target.value)}
+          />
+        </div>
         <ImagePicker images={images} onChange={setImages} />
 
         {error && (

@@ -1,18 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getItemById, retireItem, updateItem } from "@/lib/data/queries";
-import { requireAdmin } from "@/lib/auth";
+import { getItemById, updateItem } from "@/lib/data/queries";
+import { requireOrg } from "@/lib/auth";
 import { CATEGORIES, type Category, type EquipmentItem } from "@/lib/types";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const auth = await requireAdmin();
+  const auth = await requireOrg();
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
   const { id } = await params;
   const item = await getItemById(id, { includeRetired: true });
-  if (!item) return NextResponse.json({ error: "Item not found." }, { status: 404 });
+  if (!item || item.ownerId !== auth.user.id) {
+    return NextResponse.json({ error: "Item not found." }, { status: 404 });
+  }
 
   const body = await request.json().catch(() => null);
   if (!body) return NextResponse.json({ error: "Invalid request body." }, { status: 400 });
@@ -75,18 +77,4 @@ export async function PATCH(
 
   const updated = await updateItem(id, patch);
   return NextResponse.json({ item: updated });
-}
-
-export async function DELETE(
-  _request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const auth = await requireAdmin();
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
-
-  const { id } = await params;
-  const item = await retireItem(id);
-  if (!item) return NextResponse.json({ error: "Item not found." }, { status: 404 });
-
-  return NextResponse.json({ item });
 }

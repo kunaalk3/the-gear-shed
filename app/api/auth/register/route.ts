@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { createUser, getUserByEmail } from "@/lib/data/queries";
 import { createSessionToken, hashPassword, toPublicUser, SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
+import { notifyAdmins } from "@/lib/notify";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
@@ -32,7 +33,12 @@ export async function POST(request: NextRequest) {
     phone: phone ? String(phone).trim() : "",
     role: requestedRole,
     orgStatus: requestedRole === "org" ? "pending" : "approved",
+    acceptedPaymentMethods: [],
   });
+
+  if (requestedRole === "org") {
+    await notifyAdmins("new_org_pending", `${user.organisation} registered and is awaiting approval`, "/admin/organisations");
+  }
 
   const token = createSessionToken(user.id);
   const response = NextResponse.json({ user: toPublicUser(user) }, { status: 201 });

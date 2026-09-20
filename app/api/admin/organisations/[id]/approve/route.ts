@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { approveOrg, getUserById } from "@/lib/data/queries";
 import { requireAdmin, toPublicUser } from "@/lib/auth";
+import { notifyUser } from "@/lib/notify";
 
 export async function POST(
   _request: Request,
@@ -19,5 +20,8 @@ export async function POST(
   }
 
   const updated = await approveOrg(id);
+  if (updated) {
+    await notifyUser(updated.id, "org_approved", "Your organisation account has been approved", "/org/items");
+  }
   return NextResponse.json({ organisation: updated ? toPublicUser(updated) : null });
 }

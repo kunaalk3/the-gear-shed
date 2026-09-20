@@ -32,6 +32,8 @@ export async function POST(request: NextRequest) {
     depositRequired,
     bookingConditions,
     cancellationRules,
+    pickupNotes,
+    dropoffNotes,
   } = body ?? {};
 
   if (!name || !category || !CATEGORIES.includes(category)) {
@@ -68,6 +70,8 @@ export async function POST(request: NextRequest) {
     depositRequired: deposit,
     bookingConditions: bookingConditions ? String(bookingConditions).trim() : "",
     cancellationRules: cancellationRules ? String(cancellationRules).trim() : "",
+    pickupNotes: pickupNotes ? String(pickupNotes).trim() : "",
+    dropoffNotes: dropoffNotes ? String(dropoffNotes).trim() : "",
     retired: false,
     ownerId: null,
   });

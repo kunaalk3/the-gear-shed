@@ -77,6 +77,7 @@ function RegisterFormInner() {
           type="text"
           autoComplete="name"
           required
+          requiredMessage="Please enter your name."
           value={name}
           onChange={(e) => setName(e.target.value)}
         />
@@ -85,6 +86,9 @@ function RegisterFormInner() {
           type="text"
           autoComplete="organization"
           required
+          requiredMessage={
+            role === "org" ? "Please enter your organisation's name." : "Please enter your group or organisation."
+          }
           hint={
             role === "org"
               ? "An admin will review and approve your organisation before you can list equipment."
@@ -98,6 +102,8 @@ function RegisterFormInner() {
           type="email"
           autoComplete="email"
           required
+          requiredMessage="Please enter your email address."
+          invalidMessage="Please enter a valid email address, like name@example.com."
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -114,6 +120,7 @@ function RegisterFormInner() {
           autoComplete="new-password"
           required
           minLength={6}
+          requiredMessage="Please create a password."
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />
@@ -123,6 +130,7 @@ function RegisterFormInner() {
           autoComplete="new-password"
           required
           minLength={6}
+          requiredMessage="Please confirm your password."
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
         />
@@ -131,6 +139,17 @@ function RegisterFormInner() {
             {error}
           </p>
         )}
+        <p className="font-body text-xs text-ink/50">
+          By creating an account you agree to our{" "}
+          <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-pine underline underline-offset-2">
+            Terms &amp; Conditions
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-pine underline underline-offset-2">
+            Privacy Policy
+          </Link>
+          .
+        </p>
         <button
           disabled={submitting}
           className="transition-standard mt-2 rounded-full bg-amber px-5 py-2.5 font-body font-semibold text-pine hover:bg-amber-dark disabled:opacity-60"

@@ -50,6 +50,8 @@ function LoginFormInner() {
           type="email"
           autoComplete="email"
           required
+          requiredMessage="Please enter your email address."
+          invalidMessage="Please enter a valid email address, like name@example.com."
           value={email}
           onChange={(e) => setEmail(e.target.value)}
         />
@@ -58,6 +60,7 @@ function LoginFormInner() {
           type="password"
           autoComplete="current-password"
           required
+          requiredMessage="Please enter your password."
           value={password}
           onChange={(e) => setPassword(e.target.value)}
         />

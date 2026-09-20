@@ -1,5 +1,6 @@
 import { sql } from "@/lib/db";
 import type {
+  AppNotification,
   BlackoutPeriod,
   Booking,
   Category,
@@ -7,7 +8,9 @@ import type {
   Feedback,
   LoanRequest,
   LoanRequestStatus,
+  NotificationType,
   OrgStatus,
+  Review,
   User,
 } from "@/lib/types";
 
@@ -29,6 +32,8 @@ function mapItem(row: Row): EquipmentItem {
     cancellationRules: row.cancellation_rules as string,
     retired: row.retired as boolean,
     ownerId: (row.owner_id as string | null) ?? null,
+    pickupNotes: (row.pickup_notes as string) ?? "",
+    dropoffNotes: (row.dropoff_notes as string) ?? "",
   };
 }
 
@@ -42,6 +47,7 @@ function mapUser(row: Row): User {
     phone: row.phone as string,
     role: row.role as User["role"],
     orgStatus: row.org_status as User["orgStatus"],
+    acceptedPaymentMethods: (row.accepted_payment_methods as string[]) ?? [],
   };
 }
 
@@ -86,6 +92,7 @@ function mapRequest(row: Row): LoanRequest {
     createdAt: row.created_at as string,
     reviewedAt: (row.reviewed_at as string | null) ?? null,
     termsAccepted: row.terms_accepted as boolean,
+    termsVersion: row.terms_version as string,
     badHire: row.bad_hire as boolean,
   };
 }
@@ -96,6 +103,30 @@ function mapFeedback(row: Row): Feedback {
     name: row.name as string,
     email: row.email as string,
     message: row.message as string,
+    createdAt: row.created_at as string,
+  };
+}
+
+function mapNotification(row: Row): AppNotification {
+  return {
+    id: row.id as string,
+    userId: row.user_id as string,
+    type: row.type as NotificationType,
+    message: row.message as string,
+    link: row.link as string,
+    read: row.read as boolean,
+    createdAt: row.created_at as string,
+  };
+}
+
+function mapReview(row: Row): Review {
+  return {
+    id: row.id as string,
+    requestId: row.request_id as string,
+    itemId: row.item_id as string,
+    userId: row.user_id as string,
+    rating: row.rating as number,
+    comment: row.comment as string,
     createdAt: row.created_at as string,
   };
 }
@@ -163,10 +194,11 @@ export async function itemIdExists(id: string): Promise<boolean> {
 export async function createItem(item: EquipmentItem): Promise<EquipmentItem> {
   const rows = await sql`
     insert into equipment_items
-      (id, name, category, description, images, total_quantity, deposit_required, booking_conditions, cancellation_rules, retired, owner_id)
+      (id, name, category, description, images, total_quantity, deposit_required, booking_conditions, cancellation_rules, retired, owner_id, pickup_notes, dropoff_notes)
     values
       (${item.id}, ${item.name}, ${item.category}, ${item.description}, ${item.images},
-       ${item.totalQuantity}, ${item.depositRequired}, ${item.bookingConditions}, ${item.cancellationRules}, ${item.retired}, ${item.ownerId})
+       ${item.totalQuantity}, ${item.depositRequired}, ${item.bookingConditions}, ${item.cancellationRules}, ${item.retired}, ${item.ownerId},
+       ${item.pickupNotes}, ${item.dropoffNotes})
     returning *
   `;
   return mapItem(rows[0]);
@@ -190,7 +222,9 @@ export async function updateItem(
       deposit_required = ${merged.depositRequired},
       booking_conditions = ${merged.bookingConditions},
       cancellation_rules = ${merged.cancellationRules},
-      retired = ${merged.retired}
+      retired = ${merged.retired},
+      pickup_notes = ${merged.pickupNotes},
+      dropoff_notes = ${merged.dropoffNotes}
     where id = ${id}
     returning *
   `;
@@ -261,6 +295,20 @@ export async function retireOrg(id: string): Promise<User | null> {
   return rows[0] ? mapUser(rows[0]) : null;
 }
 
+export async function setAcceptedPaymentMethods(id: string, methods: string[]): Promise<User | null> {
+  const rows = await sql`
+    update users set accepted_payment_methods = ${methods}
+    where id = ${id} and role = 'org'
+    returning *
+  `;
+  return rows[0] ? mapUser(rows[0]) : null;
+}
+
+export async function getAdminUsers(): Promise<User[]> {
+  const rows = await sql`select * from users where role = 'admin'`;
+  return rows.map(mapUser);
+}
+
 // ---- bookings ----
 
 export async function getBookingsForItem(itemId: string): Promise<Booking[]> {
@@ -304,26 +352,73 @@ export async function deleteBlackout(id: string): Promise<boolean> {
   return rows.length > 0;
 }
 
+export async function getBlackoutById(id: string): Promise<BlackoutPeriod | null> {
+  const rows = await sql`select * from blackout_periods where id = ${id}`;
+  return rows[0] ? mapBlackout(rows[0]) : null;
+}
+
 // ---- loan requests ----
+
+type RequestWithItemRow = LoanRequest & {
+  itemName: string;
+  ownerId: string | null;
+  ownerOrganisation: string | null;
+};
+
+function mapRequestWithItem(row: Row): RequestWithItemRow {
+  return {
+    ...mapRequest(row),
+    itemName: row.item_name as string,
+    ownerId: (row.owner_id as string | null) ?? null,
+    ownerOrganisation: (row.owner_organisation as string | null) ?? null,
+  };
+}
 
 export async function getRequestsWithItemNames(
   status?: LoanRequestStatus | null
-): Promise<(LoanRequest & { itemName: string })[]> {
+): Promise<RequestWithItemRow[]> {
   const rows = status
     ? await sql`
-        select r.*, coalesce(i.name, 'Unknown item') as item_name
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
         from loan_requests r
         left join equipment_items i on i.id = r.item_id
+        left join users o on o.id = i.owner_id
         where r.status = ${status}
         order by r.created_at desc
       `
     : await sql`
-        select r.*, coalesce(i.name, 'Unknown item') as item_name
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
         from loan_requests r
         left join equipment_items i on i.id = r.item_id
+        left join users o on o.id = i.owner_id
         order by r.created_at desc
       `;
-  return rows.map((row) => ({ ...mapRequest(row), itemName: row.item_name as string }));
+  return rows.map(mapRequestWithItem);
+}
+
+/** Requests for items owned by a specific organisation account. */
+export async function getRequestsForOwner(
+  ownerId: string,
+  status?: LoanRequestStatus | null
+): Promise<RequestWithItemRow[]> {
+  const rows = status
+    ? await sql`
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
+        from loan_requests r
+        join equipment_items i on i.id = r.item_id
+        left join users o on o.id = i.owner_id
+        where i.owner_id = ${ownerId} and r.status = ${status}
+        order by r.created_at desc
+      `
+    : await sql`
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
+        from loan_requests r
+        join equipment_items i on i.id = r.item_id
+        left join users o on o.id = i.owner_id
+        where i.owner_id = ${ownerId}
+        order by r.created_at desc
+      `;
+  return rows.map(mapRequestWithItem);
 }
 
 export async function getRequestsForUser(
@@ -351,13 +446,13 @@ export async function createRequestWithBooking(
   await sql`
     insert into loan_requests
       (id, item_id, user_id, requester_name, requester_email, requester_organisation, requester_phone,
-       start_date, end_date, quantity, notes, status, admin_note, created_at, reviewed_at, terms_accepted, bad_hire)
+       start_date, end_date, quantity, notes, status, admin_note, created_at, reviewed_at, terms_accepted, terms_version, bad_hire)
     values
       (${loanRequest.id}, ${loanRequest.itemId}, ${loanRequest.userId}, ${loanRequest.requesterName},
        ${loanRequest.requesterEmail}, ${loanRequest.requesterOrganisation}, ${loanRequest.requesterPhone},
        ${loanRequest.startDate}, ${loanRequest.endDate}, ${loanRequest.quantity}, ${loanRequest.notes},
        ${loanRequest.status}, ${loanRequest.adminNote}, ${loanRequest.createdAt}, ${loanRequest.reviewedAt},
-       ${loanRequest.termsAccepted}, ${loanRequest.badHire})
+       ${loanRequest.termsAccepted}, ${loanRequest.termsVersion}, ${loanRequest.badHire})
   `;
   await createBooking(booking);
   return loanRequest;
@@ -412,4 +507,73 @@ export async function createFeedback(feedback: Feedback): Promise<Feedback> {
 export async function getAllFeedback(): Promise<Feedback[]> {
   const rows = await sql`select * from feedback order by created_at desc`;
   return rows.map(mapFeedback);
+}
+
+// ---- notifications ----
+
+export async function createNotification(notification: AppNotification): Promise<AppNotification> {
+  await sql`
+    insert into notifications (id, user_id, type, message, link, read, created_at)
+    values (${notification.id}, ${notification.userId}, ${notification.type}, ${notification.message},
+            ${notification.link}, ${notification.read}, ${notification.createdAt})
+  `;
+  return notification;
+}
+
+export async function getNotificationsForUser(userId: string): Promise<AppNotification[]> {
+  const rows = await sql`
+    select * from notifications where user_id = ${userId} order by created_at desc limit 30
+  `;
+  return rows.map(mapNotification);
+}
+
+export async function getUnreadNotificationCount(userId: string): Promise<number> {
+  const rows = await sql`
+    select count(*)::int as count from notifications where user_id = ${userId} and read = false
+  `;
+  return (rows[0]?.count as number) ?? 0;
+}
+
+export async function markNotificationRead(id: string, userId: string): Promise<void> {
+  await sql`update notifications set read = true where id = ${id} and user_id = ${userId}`;
+}
+
+export async function markAllNotificationsRead(userId: string): Promise<void> {
+  await sql`update notifications set read = true where user_id = ${userId} and read = false`;
+}
+
+// ---- reviews ----
+
+export async function createReview(review: Review): Promise<Review> {
+  await sql`
+    insert into reviews (id, request_id, item_id, user_id, rating, comment, created_at)
+    values (${review.id}, ${review.requestId}, ${review.itemId}, ${review.userId}, ${review.rating}, ${review.comment}, ${review.createdAt})
+  `;
+  return review;
+}
+
+export async function getReviewsForItem(itemId: string): Promise<(Review & { reviewerName: string })[]> {
+  const rows = await sql`
+    select rv.*, u.name as reviewer_name
+    from reviews rv
+    join users u on u.id = rv.user_id
+    where rv.item_id = ${itemId}
+    order by rv.created_at desc
+  `;
+  return rows.map((row) => ({ ...mapReview(row), reviewerName: row.reviewer_name as string }));
+}
+
+export async function getReviewSummaryForItem(itemId: string): Promise<{ average: number; count: number }> {
+  const rows = await sql`
+    select avg(rating)::float as average, count(*)::int as count from reviews where item_id = ${itemId}
+  `;
+  return {
+    average: (rows[0]?.average as number) ?? 0,
+    count: (rows[0]?.count as number) ?? 0,
+  };
+}
+
+export async function getReviewedRequestIds(userId: string): Promise<Set<string>> {
+  const rows = await sql`select request_id from reviews where user_id = ${userId}`;
+  return new Set(rows.map((row) => row.request_id as string));
 }

@@ -25,6 +25,8 @@ export interface EquipmentItem {
   cancellationRules: string;
   retired: boolean;
   ownerId: string | null;
+  pickupNotes: string;
+  dropoffNotes: string;
 }
 
 export type BookingStatus = "pending" | "approved";
@@ -61,6 +63,7 @@ export interface User {
   phone: string;
   role: UserRole;
   orgStatus: OrgStatus;
+  acceptedPaymentMethods: string[];
 }
 
 export type PublicUser = Omit<User, "passwordHash">;
@@ -84,6 +87,7 @@ export interface LoanRequest {
   createdAt: string;
   reviewedAt: string | null;
   termsAccepted: boolean;
+  termsVersion: string;
   badHire: boolean;
 }
 
@@ -92,5 +96,33 @@ export interface Feedback {
   name: string;
   email: string;
   message: string;
+  createdAt: string;
+}
+
+export type NotificationType =
+  | "new_request"
+  | "request_approved"
+  | "request_declined"
+  | "org_approved"
+  | "org_rejected"
+  | "new_org_pending";
+
+export interface AppNotification {
+  id: string;
+  userId: string;
+  type: NotificationType;
+  message: string;
+  link: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Review {
+  id: string;
+  requestId: string;
+  itemId: string;
+  userId: string;
+  rating: number;
+  comment: string;
   createdAt: string;
 }

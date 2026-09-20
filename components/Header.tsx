@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import AdminNotificationBadge from "@/components/AdminNotificationBadge";
+import NotificationBell from "@/components/NotificationBell";
 
 export default function Header() {
   const { user, loading, setUser } = useAuth();
@@ -44,20 +44,25 @@ export default function Header() {
               {user.role === "admin" ? (
                 <Link
                   href="/admin"
-                  className="relative rounded-full border border-amber/60 px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-amber transition-standard hover:bg-amber hover:text-pine"
+                  className="rounded-full border border-amber/60 px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-amber transition-standard hover:bg-amber hover:text-pine"
                 >
                   Admin
-                  <AdminNotificationBadge />
                 </Link>
               ) : user.role === "org" ? (
-                <Link href="/org/items" className="hidden transition-standard hover:text-amber sm:inline">
-                  Our items
-                </Link>
+                <>
+                  <Link href="/org/items" className="hidden transition-standard hover:text-amber sm:inline">
+                    Our items
+                  </Link>
+                  <Link href="/org/requests" className="hidden transition-standard hover:text-amber sm:inline">
+                    Requests
+                  </Link>
+                </>
               ) : (
                 <Link href="/my-requests" className="hidden transition-standard hover:text-amber sm:inline">
                   My requests
                 </Link>
               )}
+              <NotificationBell />
               <span className="hidden font-tag text-xs uppercase tracking-wide text-canvas/70 md:inline">
                 Hi, {user.name.split(" ")[0]}
               </span>

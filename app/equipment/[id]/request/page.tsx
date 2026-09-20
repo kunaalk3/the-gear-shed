@@ -124,6 +124,7 @@ export default function RequestPage() {
             label="Start date"
             type="date"
             required
+            requiredMessage="Please choose a start date."
             min={today}
             value={startDate}
             onChange={(e) => setStartDate(e.target.value)}
@@ -132,6 +133,7 @@ export default function RequestPage() {
             label="End date"
             type="date"
             required
+            requiredMessage="Please choose an end date."
             min={startDate || today}
             value={endDate}
             onChange={(e) => setEndDate(e.target.value)}
@@ -141,6 +143,7 @@ export default function RequestPage() {
           label="Quantity"
           type="number"
           required
+          requiredMessage="Please enter how many you need."
           min={1}
           max={item.totalQuantity}
           value={quantity}
@@ -157,24 +160,26 @@ export default function RequestPage() {
           Requesting as <strong>{user.name}</strong> · {user.organisation} · {user.email}
         </div>
 
-        <div className="rounded-lg border border-canvas-line bg-white/50 p-3 font-body text-xs text-ink/70">
-          <p className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/50">
-            Terms &amp; conditions
-          </p>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4">
-            <li>Equipment must be returned by the agreed end date, in the condition it was collected.</li>
-            <li>Any deposit is refunded once the item is returned undamaged and on time.</li>
-            <li>Loss, damage or late return may be charged against the deposit or invoiced separately.</li>
-            <li>Community Resource Network SA may decline or cancel a request at its discretion.</li>
-          </ul>
-          <label className="mt-3 flex items-start gap-2 font-body text-sm text-ink">
+        <div className="rounded-lg border border-canvas-line bg-white/50 p-3">
+          <label className="flex items-start gap-2 font-body text-sm text-ink">
             <input
               type="checkbox"
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
               className="mt-0.5 h-4 w-4 rounded border-canvas-line text-pine focus-visible:ring-2 focus-visible:ring-pine"
             />
-            I have read and agree to the terms and conditions above.
+            <span>
+              I have read and agree to the{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-pine underline underline-offset-2"
+              >
+                Terms and Conditions
+              </Link>
+              , including the equipment-use and liability conditions.
+            </span>
           </label>
         </div>
 

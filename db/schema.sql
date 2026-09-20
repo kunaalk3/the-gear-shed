@@ -10,7 +10,8 @@ create table if not exists users (
   organisation text not null default '',
   phone text not null default '',
   role text not null check (role in ('requester', 'admin', 'org')),
-  org_status text not null default 'approved' check (org_status in ('pending', 'approved', 'rejected', 'retired'))
+  org_status text not null default 'approved' check (org_status in ('pending', 'approved', 'rejected', 'retired')),
+  accepted_payment_methods text[] not null default '{}'
 );
 
 create table if not exists equipment_items (
@@ -24,7 +25,9 @@ create table if not exists equipment_items (
   booking_conditions text not null default '',
   cancellation_rules text not null default '',
   retired boolean not null default false,
-  owner_id text references users(id)
+  owner_id text references users(id),
+  pickup_notes text not null default '',
+  dropoff_notes text not null default ''
 );
 
 create table if not exists blackout_periods (
@@ -53,6 +56,7 @@ create table if not exists loan_requests (
   created_at text not null,
   reviewed_at text,
   terms_accepted boolean not null default false,
+  terms_version text not null default 'v1',
   bad_hire boolean not null default false
 );
 
@@ -63,6 +67,29 @@ create table if not exists feedback (
   message text not null,
   created_at text not null
 );
+
+create table if not exists notifications (
+  id text primary key,
+  user_id text not null references users(id),
+  type text not null,
+  message text not null,
+  link text not null default '',
+  read boolean not null default false,
+  created_at text not null
+);
+
+create table if not exists reviews (
+  id text primary key,
+  request_id text not null unique references loan_requests(id),
+  item_id text not null references equipment_items(id),
+  user_id text not null references users(id),
+  rating integer not null check (rating between 1 and 5),
+  comment text not null default '',
+  created_at text not null
+);
+
+create index if not exists idx_notifications_user_id on notifications(user_id);
+create index if not exists idx_reviews_item_id on reviews(item_id);
 
 create table if not exists bookings (
   id text primary key,

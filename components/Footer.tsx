@@ -4,7 +4,7 @@ import { CATEGORIES } from "@/lib/types";
 export default function Footer() {
   return (
     <footer className="mt-auto border-t border-canvas-line bg-canvas-dark">
-      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 sm:grid-cols-3">
+      <div className="mx-auto grid max-w-6xl gap-8 px-5 py-10 sm:grid-cols-2 lg:grid-cols-4">
         <div>
           <p className="font-display text-lg font-bold uppercase text-pine">ComRes</p>
           <p className="mt-2 max-w-xs font-body text-sm text-ink/70">
@@ -42,6 +42,22 @@ export default function Footer() {
           >
             Share feedback
           </Link>
+        </div>
+
+        <div>
+          <p className="font-tag text-xs uppercase tracking-widest text-ink/50">Legal</p>
+          <ul className="mt-2 space-y-1 font-body text-sm">
+            <li>
+              <Link href="/terms" className="text-ink/70 transition-standard hover:text-pine">
+                Terms &amp; Conditions
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className="text-ink/70 transition-standard hover:text-pine">
+                Privacy Policy
+              </Link>
+            </li>
+          </ul>
         </div>
       </div>
     </footer>

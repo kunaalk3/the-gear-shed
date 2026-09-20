@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 import { useRequireUser } from "@/lib/use-require-user";
-import AdminNav from "@/components/AdminNav";
+import OrgNav from "@/components/OrgNav";
 import type { LoanRequestStatus } from "@/lib/types";
 
 interface RequestWithItem {
   id: string;
-  userId: string;
   itemName: string;
   requesterName: string;
   requesterEmail: string;
@@ -18,12 +18,6 @@ interface RequestWithItem {
   notes: string;
   status: LoanRequestStatus;
   adminNote: string;
-  badHire: boolean;
-  ownerId: string | null;
-  ownerOrganisation: string | null;
-  termsAccepted: boolean;
-  termsVersion: string;
-  createdAt: string;
 }
 
 const TABS: { label: string; value: LoanRequestStatus | "all" }[] = [
@@ -33,8 +27,9 @@ const TABS: { label: string; value: LoanRequestStatus | "all" }[] = [
   { label: "All", value: "all" },
 ];
 
-export default function AdminRequestsPage() {
-  const { ready } = useRequireUser({ role: "admin" });
+export default function OrgRequestsPage() {
+  const { ready } = useRequireUser({ role: "org" });
+  const { user } = useAuth();
   const [requests, setRequests] = useState<RequestWithItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<LoanRequestStatus | "all">("pending");
@@ -44,37 +39,27 @@ export default function AdminRequestsPage() {
 
   const load = useCallback(() => {
     setLoading(true);
-    fetch("/api/admin/requests")
+    fetch("/api/org/requests")
       .then((r) => r.json())
       .then((data) => setRequests(data.requests ?? []))
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (ready) load();
-  }, [ready, load]);
+    if (ready && user?.orgStatus === "approved") load();
+    else setLoading(false);
+  }, [ready, user, load]);
 
   async function approve(id: string) {
     setBusyId(id);
-    await fetch(`/api/admin/requests/${id}/approve`, { method: "POST" });
-    setBusyId(null);
-    load();
-  }
-
-  async function toggleBadHire(request: RequestWithItem) {
-    setBusyId(request.id);
-    await fetch(`/api/admin/requests/${request.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ badHire: !request.badHire }),
-    });
+    await fetch(`/api/org/requests/${id}/approve`, { method: "POST" });
     setBusyId(null);
     load();
   }
 
   async function decline(id: string) {
     setBusyId(id);
-    await fetch(`/api/admin/requests/${id}/decline`, {
+    await fetch(`/api/org/requests/${id}/decline`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ note: declineNote }),
@@ -85,17 +70,34 @@ export default function AdminRequestsPage() {
     load();
   }
 
-  if (!ready) return <Loading />;
+  if (!ready || !user) return <Loading />;
+
+  if (user.orgStatus !== "approved") {
+    return (
+      <div className="mx-auto w-full max-w-5xl px-5 py-10">
+        <p className="font-tag text-xs uppercase tracking-widest text-pine/70">{user.organisation}</p>
+        <h1 className="mt-1 font-display text-4xl font-bold text-pine">Requests</h1>
+        <div className="mt-6">
+          <OrgNav />
+        </div>
+        <p className="gear-tag mt-6 p-4 font-body text-sm text-ink/70">
+          {user.orgStatus === "pending"
+            ? "Your organisation is awaiting admin approval."
+            : "Your organisation's application wasn't approved."}
+        </p>
+      </div>
+    );
+  }
 
   const visible = filter === "all" ? requests : requests.filter((r) => r.status === filter);
 
   return (
     <div className="mx-auto w-full max-w-5xl px-5 py-10">
-      <p className="font-tag text-xs uppercase tracking-widest text-pine/70">Admin</p>
-      <h1 className="mt-1 font-display text-4xl font-bold text-pine">Loan requests</h1>
+      <p className="font-tag text-xs uppercase tracking-widest text-pine/70">{user.organisation}</p>
+      <h1 className="mt-1 font-display text-4xl font-bold text-pine">Requests for our items</h1>
 
       <div className="mt-6">
-        <AdminNav />
+        <OrgNav />
       </div>
 
       <div className="mt-6 flex flex-wrap gap-2">
@@ -120,9 +122,6 @@ export default function AdminRequestsPage() {
                   <p className="font-tag text-xs uppercase tracking-wide text-ink/60">
                     {r.requesterName} · {r.requesterOrganisation} · {r.requesterEmail}
                   </p>
-                  <p className="mt-1 font-tag text-[0.65rem] uppercase tracking-wide text-pine/70">
-                    {r.ownerId ? `Owned by ${r.ownerOrganisation}` : "Community Resource Network SA stock"}
-                  </p>
                   <p className="mt-1 font-body text-sm text-ink/70">
                     {r.startDate} → {r.endDate} · x{r.quantity}
                   </p>
@@ -130,35 +129,8 @@ export default function AdminRequestsPage() {
                   {r.status === "declined" && r.adminNote && (
                     <p className="mt-1 font-body text-sm text-brick">Declined: {r.adminNote}</p>
                   )}
-                  <p className="mt-1 font-tag text-[0.65rem] uppercase tracking-wide text-ink/40">
-                    {r.termsAccepted
-                      ? `T&Cs ${r.termsVersion} accepted by ${r.userId} on ${new Date(r.createdAt).toLocaleString()}`
-                      : "T&Cs not recorded"}
-                  </p>
                 </div>
-                <div className="flex shrink-0 flex-col items-end gap-2">
-                  <StatusBadge status={r.status} />
-                  {r.badHire && (
-                    <span className="w-fit rounded-full bg-brick px-3 py-1 font-tag text-xs uppercase tracking-wide text-canvas">
-                      ⚑ Bad hire
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-3 border-t border-dashed border-canvas-line pt-3">
-                <button
-                  type="button"
-                  onClick={() => toggleBadHire(r)}
-                  disabled={busyId === r.id}
-                  className={`transition-standard rounded-full border px-4 py-1.5 font-tag text-xs uppercase tracking-wide disabled:opacity-50 ${
-                    r.badHire
-                      ? "border-canvas-line text-ink/60 hover:border-pine hover:text-pine"
-                      : "border-brick text-brick hover:bg-brick hover:text-canvas"
-                  }`}
-                >
-                  {r.badHire ? "Clear bad hire flag" : "Flag as bad hire"}
-                </button>
+                <StatusBadge status={r.status} />
               </div>
 
               {r.status === "pending" && (

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useRequireUser } from "@/lib/use-require-user";
-import AdminNav from "@/components/AdminNav";
+import OrgNav from "@/components/OrgNav";
 import { FormField, FormTextarea } from "@/components/FormField";
 import { ImagePicker } from "@/components/ImagePicker";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import { CATEGORIES, type Category, type EquipmentItem } from "@/lib/types";
 
 interface Blackout {
@@ -15,9 +16,9 @@ interface Blackout {
   reason: string;
 }
 
-export default function EditItemPage() {
+export default function EditOrgItemPage() {
   const { id } = useParams<{ id: string }>();
-  const { ready } = useRequireUser({ role: "admin" });
+  const { ready } = useRequireUser({ role: "org" });
   const router = useRouter();
 
   const [item, setItem] = useState<EquipmentItem | null>(null);
@@ -51,7 +52,7 @@ export default function EditItemPage() {
 
   useEffect(() => {
     if (!ready) return;
-    fetch("/api/admin/items")
+    fetch("/api/org/items")
       .then((r) => r.json())
       .then((data) => {
         const found = (data.items ?? []).find((i: EquipmentItem) => i.id === id);
@@ -81,7 +82,7 @@ export default function EditItemPage() {
     setSubmitting(true);
     setError(null);
 
-    const res = await fetch(`/api/admin/items/${id}`, {
+    const res = await fetch(`/api/org/items/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -104,7 +105,17 @@ export default function EditItemPage() {
       setError(data.error ?? "Something went wrong.");
       return;
     }
-    router.push("/admin/items");
+    router.push("/org/items");
+  }
+
+  async function toggleRetired() {
+    if (!item) return;
+    await fetch(`/api/org/items/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ retired: !item.retired }),
+    });
+    router.push("/org/items");
   }
 
   async function addBlackout(event: FormEvent) {
@@ -112,7 +123,7 @@ export default function EditItemPage() {
     setBlackoutError(null);
     setBlackoutBusy(true);
 
-    const res = await fetch(`/api/admin/items/${id}/blackouts`, {
+    const res = await fetch(`/api/org/items/${id}/blackouts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ startDate: blackoutStart, endDate: blackoutEnd, reason: blackoutReason }),
@@ -132,18 +143,18 @@ export default function EditItemPage() {
 
   async function removeBlackout(blackoutId: string) {
     setBlackoutBusy(true);
-    await fetch(`/api/admin/blackouts/${blackoutId}`, { method: "DELETE" });
+    await fetch(`/api/org/blackouts/${blackoutId}`, { method: "DELETE" });
     setBlackoutBusy(false);
     loadBlackouts();
   }
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 py-10">
-      <p className="font-tag text-xs uppercase tracking-widest text-pine/70">Admin</p>
+      <p className="font-tag text-xs uppercase tracking-widest text-pine/70">Our items</p>
       <h1 className="mt-1 font-display text-4xl font-bold text-pine">Edit {item.name}</h1>
 
       <div className="mt-6">
-        <AdminNav />
+        <OrgNav />
       </div>
 
       <form onSubmit={handleSubmit} className="gear-tag mt-6 flex flex-col gap-4 p-6">
@@ -179,11 +190,11 @@ export default function EditItemPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <FormField
-            label="Quantity in the shed"
+            label="Quantity available"
             type="number"
             min={1}
             required
-            requiredMessage="Please enter how many you have."
+            requiredMessage="Please enter how many you have available."
             value={totalQuantity}
             onChange={(e) => setTotalQuantity(Number(e.target.value))}
           />
@@ -211,11 +222,13 @@ export default function EditItemPage() {
         <div className="grid grid-cols-2 gap-4">
           <FormField
             label="Pickup preference"
+            placeholder="e.g. Weekdays 9am-5pm from our depot"
             value={pickupNotes}
             onChange={(e) => setPickupNotes(e.target.value)}
           />
           <FormField
             label="Drop-off preference"
+            placeholder="e.g. Return by 5pm the day it's due"
             value={dropoffNotes}
             onChange={(e) => setDropoffNotes(e.target.value)}
           />
@@ -228,18 +241,41 @@ export default function EditItemPage() {
           </p>
         )}
 
-        <button
-          disabled={submitting}
-          className="transition-standard mt-2 rounded-full bg-amber px-5 py-2.5 font-body font-semibold text-pine hover:bg-amber-dark disabled:opacity-60"
-        >
-          {submitting ? "Saving…" : "Save changes"}
-        </button>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button
+            disabled={submitting}
+            className="transition-standard rounded-full bg-amber px-5 py-2.5 font-body font-semibold text-pine hover:bg-amber-dark disabled:opacity-60"
+          >
+            {submitting ? "Saving…" : "Save changes"}
+          </button>
+          <button
+            type="button"
+            onClick={toggleRetired}
+            className={`transition-standard rounded-full border px-5 py-2.5 font-tag text-xs uppercase tracking-wide ${
+              item.retired
+                ? "border-moss text-moss hover:bg-moss hover:text-canvas"
+                : "border-brick text-brick hover:bg-brick hover:text-canvas"
+            }`}
+          >
+            {item.retired ? "Restore listing" : "Retire listing"}
+          </button>
+        </div>
       </form>
 
       <div className="gear-tag mt-6 p-6">
-        <h2 className="font-display text-xl font-bold text-pine">Scheduled unavailability</h2>
+        <h2 className="font-display text-xl font-bold text-pine">Availability</h2>
         <p className="mt-1 font-body text-sm text-ink/60">
-          Block dates off for maintenance or anything else keeping this item out of circulation.
+          What requesters see when they check this item&rsquo;s calendar.
+        </p>
+        <div className="mt-4 max-w-md">
+          <AvailabilityCalendar itemId={item.id} totalQuantity={item.totalQuantity} />
+        </div>
+      </div>
+
+      <div className="gear-tag mt-6 p-6">
+        <h2 className="font-display text-xl font-bold text-pine">Mark dates unavailable</h2>
+        <p className="mt-1 font-body text-sm text-ink/60">
+          Block dates off for maintenance, your own use, or anything else keeping this item out of circulation.
         </p>
 
         {blackouts.length > 0 && (
@@ -274,6 +310,7 @@ export default function EditItemPage() {
               label="Start date"
               type="date"
               required
+              requiredMessage="Please choose a start date."
               value={blackoutStart}
               onChange={(e) => setBlackoutStart(e.target.value)}
             />
@@ -281,6 +318,7 @@ export default function EditItemPage() {
               label="End date"
               type="date"
               required
+              requiredMessage="Please choose an end date."
               value={blackoutEnd}
               onChange={(e) => setBlackoutEnd(e.target.value)}
             />
