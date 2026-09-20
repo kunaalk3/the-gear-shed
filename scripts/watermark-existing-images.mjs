@@ -62,34 +62,53 @@ function buildWatermarkSvg(width, height) {
   `);
 }
 
-async function watermarkImage(buffer) {
+const FORMAT_BY_EXTENSION = { jpg: "jpeg", jpeg: "jpeg", png: "png", webp: "webp", gif: "gif" };
+const CONTENT_TYPE_BY_FORMAT = { jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
+
+async function watermarkImage(buffer, format) {
   const image = sharp(buffer);
   const { width, height } = await image.metadata();
   if (!width || !height) return buffer;
   const overlay = buildWatermarkSvg(width, height);
-  return image.composite([{ input: overlay, blend: "over" }]).jpeg({ quality: 88 }).toBuffer();
+  const composed = image.composite([{ input: overlay, blend: "over" }]);
+  switch (format) {
+    case "jpeg":
+      return composed.jpeg({ quality: 88 }).toBuffer();
+    case "png":
+      return composed.png().toBuffer();
+    case "webp":
+      return composed.webp({ quality: 88 }).toBuffer();
+    case "gif":
+      return composed.gif().toBuffer();
+    default:
+      return composed.jpeg({ quality: 88 }).toBuffer();
+  }
 }
 
-// Skip anything already served from our own Blob store — only picsum.photos
-// seed placeholders (and similar external stock URLs) still need watermarking.
-function needsWatermark(url) {
-  return !url.includes(".public.blob.vercel-storage.com");
-}
+// IDs already watermarked by the first backfill run (2026-09-21) — skip to
+// avoid stacking the pattern twice on images that are already correct.
+const ALREADY_WATERMARKED = new Set([
+  "camp-oven-set",
+  "pestle",
+  "pa-system-portable",
+  "mixer-speaker-kit",
+  "stacking-chairs-10",
+]);
 
 const items = await sql`select id, name, images from equipment_items order by name`;
 console.log(`Found ${items.length} items.`);
 
 let updated = 0;
 for (const item of items) {
+  if (ALREADY_WATERMARKED.has(item.id)) {
+    console.log(`  already watermarked, skipping: ${item.name} (${item.id})`);
+    continue;
+  }
   const images = item.images ?? [];
-  if (images.length === 0 || !images.some(needsWatermark)) continue;
+  if (images.length === 0) continue;
 
   const newImages = [];
   for (const url of images) {
-    if (!needsWatermark(url)) {
-      newImages.push(url);
-      continue;
-    }
     const res = await fetch(url);
     if (!res.ok) {
       console.warn(`  skip (fetch failed ${res.status}): ${url}`);
@@ -97,11 +116,14 @@ for (const item of items) {
       continue;
     }
     const original = Buffer.from(await res.arrayBuffer());
-    const watermarked = await watermarkImage(original);
-    const filename = `${randomUUID()}.jpg`;
+    const extMatch = url.match(/\.([a-zA-Z0-9]+)(?:\?|$)/);
+    const ext = (extMatch?.[1] ?? "jpg").toLowerCase();
+    const format = FORMAT_BY_EXTENSION[ext] ?? "jpeg";
+    const watermarked = await watermarkImage(original, format);
+    const filename = `${randomUUID()}.${ext in FORMAT_BY_EXTENSION ? ext : "jpg"}`;
     const blob = await put(`uploads/${filename}`, watermarked, {
       access: "public",
-      contentType: "image/jpeg",
+      contentType: CONTENT_TYPE_BY_FORMAT[format],
     });
     newImages.push(blob.url);
   }
