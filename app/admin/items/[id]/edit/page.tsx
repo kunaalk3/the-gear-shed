@@ -28,7 +28,7 @@ export default function EditItemPage() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<Category>(CATEGORIES[0]);
   const [description, setDescription] = useState("");
-  const [totalQuantity, setTotalQuantity] = useState(1);
+  const [totalQuantity, setTotalQuantity] = useState("1");
   const [depositRequired, setDepositRequired] = useState("0");
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
@@ -60,7 +60,7 @@ export default function EditItemPage() {
           setName(found.name);
           setCategory(found.category);
           setDescription(found.description);
-          setTotalQuantity(found.totalQuantity);
+          setTotalQuantity(String(found.totalQuantity));
           setDepositRequired(String(found.depositRequired));
           setBookingConditions(found.bookingConditions);
           setCancellationRules(found.cancellationRules);
@@ -88,7 +88,7 @@ export default function EditItemPage() {
         name,
         category,
         description,
-        totalQuantity,
+        totalQuantity: Number(totalQuantity) || 1,
         depositRequired: Number(depositRequired) || 0,
         bookingConditions,
         cancellationRules,
@@ -185,7 +185,8 @@ export default function EditItemPage() {
             required
             requiredMessage="Please enter how many you have."
             value={totalQuantity}
-            onChange={(e) => setTotalQuantity(Number(e.target.value))}
+            onChange={(e) => setTotalQuantity(e.target.value)}
+            onBlur={() => setTotalQuantity((v) => (v.trim() === "" ? "1" : v))}
           />
           <FormField
             label="Deposit ($, 0 for none)"

@@ -19,7 +19,7 @@ export default function RequestPage() {
 
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState("1");
   const [notes, setNotes] = useState("");
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,7 +53,14 @@ export default function RequestPage() {
     const res = await fetch("/api/requests", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ itemId: id, startDate, endDate, quantity, notes, termsAccepted }),
+      body: JSON.stringify({
+        itemId: id,
+        startDate,
+        endDate,
+        quantity: Number(quantity) || 1,
+        notes,
+        termsAccepted,
+      }),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -147,7 +154,8 @@ export default function RequestPage() {
           min={1}
           max={item.totalQuantity}
           value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
+          onChange={(e) => setQuantity(e.target.value)}
+          onBlur={() => setQuantity((v) => (v.trim() === "" ? "1" : v))}
         />
         <FormTextarea
           label="Notes for the organisers (optional)"
