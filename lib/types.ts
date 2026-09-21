@@ -64,6 +64,8 @@ export interface User {
   role: UserRole;
   orgStatus: OrgStatus;
   acceptedPaymentMethods: string[];
+  termsAccepted: boolean;
+  termsVersion: string;
 }
 
 export type PublicUser = Omit<User, "passwordHash">;

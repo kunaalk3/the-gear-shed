@@ -3,15 +3,23 @@ import { NextRequest, NextResponse } from "next/server";
 import { createUser, getUserByEmail } from "@/lib/data/queries";
 import { createSessionToken, hashPassword, toPublicUser, SESSION_COOKIE_NAME, SESSION_MAX_AGE_SECONDS } from "@/lib/auth";
 import { notifyAdmins } from "@/lib/notify";
+import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
-  const { name, email, password, organisation, phone, role } = body ?? {};
+  const { name, email, password, organisation, phone, role, termsAccepted } = body ?? {};
   const requestedRole: "requester" | "org" = role === "org" ? "org" : "requester";
 
   if (!name || !email || !password || !organisation) {
     return NextResponse.json(
       { error: "Name, email, organisation and password are required." },
+      { status: 400 }
+    );
+  }
+
+  if (termsAccepted !== true) {
+    return NextResponse.json(
+      { error: "You must agree to the Terms & Conditions and Privacy Policy to create an account." },
       { status: 400 }
     );
   }
@@ -34,6 +42,8 @@ export async function POST(request: NextRequest) {
     role: requestedRole,
     orgStatus: requestedRole === "org" ? "pending" : "approved",
     acceptedPaymentMethods: [],
+    termsAccepted: true,
+    termsVersion: CURRENT_TERMS_VERSION,
   });
 
   if (requestedRole === "org") {

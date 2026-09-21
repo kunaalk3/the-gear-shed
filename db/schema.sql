@@ -11,7 +11,9 @@ create table if not exists users (
   phone text not null default '',
   role text not null check (role in ('requester', 'admin', 'org')),
   org_status text not null default 'approved' check (org_status in ('pending', 'approved', 'rejected', 'retired')),
-  accepted_payment_methods text[] not null default '{}'
+  accepted_payment_methods text[] not null default '{}',
+  terms_accepted boolean not null default false,
+  terms_version text not null default ''
 );
 
 create table if not exists equipment_items (

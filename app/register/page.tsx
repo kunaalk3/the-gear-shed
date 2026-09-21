@@ -19,6 +19,7 @@ function RegisterFormInner() {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [role, setRole] = useState<"requester" | "org">("requester");
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -31,11 +32,16 @@ function RegisterFormInner() {
       return;
     }
 
+    if (!termsAccepted) {
+      setError("You must agree to the Terms & Conditions and Privacy Policy to create an account.");
+      return;
+    }
+
     setSubmitting(true);
     const res = await fetch("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, organisation, email, phone, password, role }),
+      body: JSON.stringify({ name, organisation, email, phone, password, role, termsAccepted }),
     });
     const data = await res.json();
     setSubmitting(false);
@@ -134,24 +140,45 @@ function RegisterFormInner() {
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
         />
+        <div className="rounded-lg border border-canvas-line bg-white/50 p-3">
+          <label className="flex items-start gap-2 font-body text-sm text-ink">
+            <input
+              type="checkbox"
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5 h-4 w-4 rounded border-canvas-line text-pine focus-visible:ring-2 focus-visible:ring-pine"
+            />
+            <span>
+              I have read and agree to the{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-pine underline underline-offset-2"
+              >
+                Terms &amp; Conditions
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-pine underline underline-offset-2"
+              >
+                Privacy Policy
+              </Link>
+              .
+            </span>
+          </label>
+        </div>
+
         {error && (
           <p role="alert" className="font-body text-sm text-brick">
             {error}
           </p>
         )}
-        <p className="font-body text-xs text-ink/50">
-          By creating an account you agree to our{" "}
-          <Link href="/terms" target="_blank" rel="noopener noreferrer" className="text-pine underline underline-offset-2">
-            Terms &amp; Conditions
-          </Link>{" "}
-          and{" "}
-          <Link href="/privacy" target="_blank" rel="noopener noreferrer" className="text-pine underline underline-offset-2">
-            Privacy Policy
-          </Link>
-          .
-        </p>
         <button
-          disabled={submitting}
+          disabled={submitting || !termsAccepted}
           className="transition-standard mt-2 rounded-full bg-amber px-5 py-2.5 font-body font-semibold text-pine hover:bg-amber-dark disabled:opacity-60"
         >
           {submitting ? "Creating account…" : "Create account"}

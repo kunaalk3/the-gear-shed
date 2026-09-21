@@ -48,6 +48,8 @@ function mapUser(row: Row): User {
     role: row.role as User["role"],
     orgStatus: row.org_status as User["orgStatus"],
     acceptedPaymentMethods: (row.accepted_payment_methods as string[]) ?? [],
+    termsAccepted: (row.terms_accepted as boolean) ?? false,
+    termsVersion: (row.terms_version as string) ?? "",
   };
 }
 
@@ -250,8 +252,8 @@ export async function getUserById(id: string): Promise<User | null> {
 
 export async function createUser(user: User): Promise<User> {
   await sql`
-    insert into users (id, name, email, password_hash, organisation, phone, role, org_status)
-    values (${user.id}, ${user.name}, ${user.email}, ${user.passwordHash}, ${user.organisation}, ${user.phone}, ${user.role}, ${user.orgStatus})
+    insert into users (id, name, email, password_hash, organisation, phone, role, org_status, terms_accepted, terms_version)
+    values (${user.id}, ${user.name}, ${user.email}, ${user.passwordHash}, ${user.organisation}, ${user.phone}, ${user.role}, ${user.orgStatus}, ${user.termsAccepted}, ${user.termsVersion})
   `;
   return user;
 }

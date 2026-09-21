@@ -4,8 +4,7 @@ import { createRequestWithBooking, getBlackoutsForItem, getBookingsForItem, getI
 import { getCurrentUser } from "@/lib/auth";
 import { isBlackedOut, maxReservedInRange } from "@/lib/availability";
 import { notifyAdmins, notifyUser } from "@/lib/notify";
-
-const CURRENT_TERMS_VERSION = "2026-09-20";
+import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser();
