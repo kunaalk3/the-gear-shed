@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
   }
 
   const imageList: string[] = Array.isArray(images)
-    ? images.filter((src): src is string => typeof src === "string" && src.trim().length > 0)
+    ? images.filter((src): src is string => typeof src === "string" && src.trim().length > 0).slice(0, 3)
     : [];
 
   const item = await createItem({

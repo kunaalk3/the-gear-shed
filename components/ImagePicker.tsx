@@ -3,6 +3,8 @@
 import { useRef, useState } from "react";
 import Image from "next/image";
 
+const MAX_IMAGES = 3;
+
 interface ImagePickerProps {
   images: string[];
   onChange: (images: string[]) => void;
@@ -12,14 +14,24 @@ export function ImagePicker({ images, onChange }: ImagePickerProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const remaining = MAX_IMAGES - images.length;
 
   async function handleFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
     setError(null);
-    setUploading(true);
 
+    const files = Array.from(fileList).slice(0, remaining);
+    if (fileList.length > files.length) {
+      setError(`You can only upload up to ${MAX_IMAGES} photos per item.`);
+    }
+    if (files.length === 0) {
+      if (inputRef.current) inputRef.current.value = "";
+      return;
+    }
+
+    setUploading(true);
     const uploaded: string[] = [];
-    for (const file of Array.from(fileList)) {
+    for (const file of files) {
       const body = new FormData();
       body.append("file", file);
       const res = await fetch("/api/uploads", { method: "POST", body });
@@ -42,7 +54,9 @@ export function ImagePicker({ images, onChange }: ImagePickerProps) {
 
   return (
     <div className="flex flex-col gap-2 font-body text-sm">
-      <span className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/60">Photos</span>
+      <span className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/60">
+        Photos ({images.length}/{MAX_IMAGES})
+      </span>
 
       {images.length > 0 && (
         <div className="grid grid-cols-3 gap-3 sm:grid-cols-4">
@@ -62,14 +76,16 @@ export function ImagePicker({ images, onChange }: ImagePickerProps) {
         </div>
       )}
 
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        className="transition-standard w-fit rounded-full border border-pine px-4 py-2 font-tag text-xs uppercase tracking-wide text-pine hover:bg-pine hover:text-canvas disabled:opacity-50"
-      >
-        {uploading ? "Uploading…" : "Choose photos from this device"}
-      </button>
+      {remaining > 0 && (
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          disabled={uploading}
+          className="transition-standard w-fit rounded-full border border-pine px-4 py-2 font-tag text-xs uppercase tracking-wide text-pine hover:bg-pine hover:text-canvas disabled:opacity-50"
+        >
+          {uploading ? "Uploading…" : "Choose photos from this device"}
+        </button>
+      )}
       <input
         ref={inputRef}
         type="file"
