@@ -16,7 +16,7 @@ export default function NewItemPage() {
   const [category, setCategory] = useState<Category>(CATEGORIES[0]);
   const [description, setDescription] = useState("");
   const [totalQuantity, setTotalQuantity] = useState(1);
-  const [depositRequired, setDepositRequired] = useState(0);
+  const [depositRequired, setDepositRequired] = useState("0");
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
   const [pickupNotes, setPickupNotes] = useState("");
@@ -40,7 +40,7 @@ export default function NewItemPage() {
         category,
         description,
         totalQuantity,
-        depositRequired,
+        depositRequired: Number(depositRequired) || 0,
         bookingConditions,
         cancellationRules,
         pickupNotes,
@@ -113,7 +113,8 @@ export default function NewItemPage() {
             type="number"
             min={0}
             value={depositRequired}
-            onChange={(e) => setDepositRequired(Number(e.target.value))}
+            onChange={(e) => setDepositRequired(e.target.value)}
+            onBlur={() => setDepositRequired((v) => (v.trim() === "" ? "0" : v))}
           />
         </div>
 

@@ -29,7 +29,7 @@ export default function EditItemPage() {
   const [category, setCategory] = useState<Category>(CATEGORIES[0]);
   const [description, setDescription] = useState("");
   const [totalQuantity, setTotalQuantity] = useState(1);
-  const [depositRequired, setDepositRequired] = useState(0);
+  const [depositRequired, setDepositRequired] = useState("0");
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
   const [pickupNotes, setPickupNotes] = useState("");
@@ -61,7 +61,7 @@ export default function EditItemPage() {
           setCategory(found.category);
           setDescription(found.description);
           setTotalQuantity(found.totalQuantity);
-          setDepositRequired(found.depositRequired);
+          setDepositRequired(String(found.depositRequired));
           setBookingConditions(found.bookingConditions);
           setCancellationRules(found.cancellationRules);
           setPickupNotes(found.pickupNotes);
@@ -89,7 +89,7 @@ export default function EditItemPage() {
         category,
         description,
         totalQuantity,
-        depositRequired,
+        depositRequired: Number(depositRequired) || 0,
         bookingConditions,
         cancellationRules,
         pickupNotes,
@@ -192,7 +192,8 @@ export default function EditItemPage() {
             type="number"
             min={0}
             value={depositRequired}
-            onChange={(e) => setDepositRequired(Number(e.target.value))}
+            onChange={(e) => setDepositRequired(e.target.value)}
+            onBlur={() => setDepositRequired((v) => (v.trim() === "" ? "0" : v))}
           />
         </div>
 
