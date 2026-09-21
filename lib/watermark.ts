@@ -1,18 +1,21 @@
 import sharp from "sharp";
+import { WATERMARK_TILE_PNG_BASE64 } from "@/lib/watermark-tile";
 
-const WATERMARK_TEXT = "ComRes";
+const TILE_SIZE = 200;
 
-/** Builds a tiled, diagonal watermark pattern sized to the source image so it survives crops and screenshots alike. */
+/**
+ * Builds a tiled diagonal "ComRes" pattern from a pre-rendered PNG tile
+ * (see lib/watermark-tile.ts) rather than SVG <text>. Vercel's serverless
+ * runtime has no system fonts, so librsvg silently rendered the text as
+ * empty glyph boxes there even though the same SVG worked fine locally —
+ * baking the text into a raster tile removes that font dependency entirely.
+ */
 function buildWatermarkSvg(width: number, height: number): Buffer {
-  const tileSize = 200;
   const svg = `
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <pattern id="watermark" width="${tileSize}" height="${tileSize}" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
-          <text x="0" y="${tileSize / 2}" font-family="sans-serif" font-size="28" font-weight="700"
-                fill="rgba(255,255,255,0.32)" stroke="rgba(0,0,0,0.18)" stroke-width="0.5">
-            ${WATERMARK_TEXT}
-          </text>
+        <pattern id="watermark" width="${TILE_SIZE}" height="${TILE_SIZE}" patternUnits="userSpaceOnUse">
+          <image href="data:image/png;base64,${WATERMARK_TILE_PNG_BASE64}" x="0" y="0" width="${TILE_SIZE}" height="${TILE_SIZE}" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#watermark)" />

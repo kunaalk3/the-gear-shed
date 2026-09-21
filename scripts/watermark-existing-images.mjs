@@ -43,18 +43,20 @@ if (!blobToken) {
 
 const sql = neon(dbUrl);
 
-const WATERMARK_TEXT = "ComRes";
+// Pre-rendered raster tile, not live SVG <text> -- Vercel's serverless runtime
+// has no system fonts, so text-based SVG watermarks render as empty glyph
+// boxes there even though they look fine when this script runs locally.
+// Read straight out of lib/watermark-tile.ts so there's one source of truth.
+const tileSrc = readFileSync(path.join(__dirname, "..", "lib", "watermark-tile.ts"), "utf8");
+const WATERMARK_TILE_PNG_BASE64 = tileSrc.match(/"([A-Za-z0-9+/=]+)"/)[1];
 
 function buildWatermarkSvg(width, height) {
   const tileSize = 200;
   return Buffer.from(`
     <svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <pattern id="watermark" width="${tileSize}" height="${tileSize}" patternUnits="userSpaceOnUse" patternTransform="rotate(-30)">
-          <text x="0" y="${tileSize / 2}" font-family="sans-serif" font-size="28" font-weight="700"
-                fill="rgba(255,255,255,0.32)" stroke="rgba(0,0,0,0.18)" stroke-width="0.5">
-            ${WATERMARK_TEXT}
-          </text>
+        <pattern id="watermark" width="${tileSize}" height="${tileSize}" patternUnits="userSpaceOnUse">
+          <image href="data:image/png;base64,${WATERMARK_TILE_PNG_BASE64}" x="0" y="0" width="${tileSize}" height="${tileSize}" />
         </pattern>
       </defs>
       <rect width="100%" height="100%" fill="url(#watermark)" />
@@ -85,25 +87,19 @@ async function watermarkImage(buffer, format) {
   }
 }
 
-// IDs already watermarked by the first backfill run (2026-09-21) — skip to
-// avoid stacking the pattern twice on images that are already correct.
-const ALREADY_WATERMARKED = new Set([
-  "camp-oven-set",
-  "pestle",
-  "pa-system-portable",
-  "mixer-speaker-kit",
-  "stacking-chairs-10",
-]);
-
-const items = await sql`select id, name, images from equipment_items order by name`;
-console.log(`Found ${items.length} items.`);
+// Every item from the original seed catalog (owner_id is null) was already
+// watermarked correctly by the two backfill runs on 2026-09-21, run locally
+// where real fonts exist. This corrective pass targets only items added
+// afterwards through the org self-service "Add an item" flow (owner_id set)
+// -- those went through the live /api/uploads endpoint on Vercel, which had
+// no system fonts and silently baked in an unreadable "empty box" watermark
+// instead of "ComRes". Re-stamping them with the fixed raster-tile watermark
+// leaves the old faint boxes underneath but makes "ComRes" clearly legible.
+const items = await sql`select id, name, images from equipment_items where owner_id is not null order by name`;
+console.log(`Found ${items.length} org-uploaded items to re-watermark.`);
 
 let updated = 0;
 for (const item of items) {
-  if (ALREADY_WATERMARKED.has(item.id)) {
-    console.log(`  already watermarked, skipping: ${item.name} (${item.id})`);
-    continue;
-  }
   const images = item.images ?? [];
   if (images.length === 0) continue;
 
