@@ -367,6 +367,7 @@ export async function getBlackoutById(id: string): Promise<BlackoutPeriod | null
 
 type RequestWithItemRow = LoanRequest & {
   itemName: string;
+  itemDepositRequired: number;
   ownerId: string | null;
   ownerOrganisation: string | null;
 };
@@ -375,6 +376,7 @@ function mapRequestWithItem(row: Row): RequestWithItemRow {
   return {
     ...mapRequest(row),
     itemName: row.item_name as string,
+    itemDepositRequired: (row.item_deposit_required as number) ?? 0,
     ownerId: (row.owner_id as string | null) ?? null,
     ownerOrganisation: (row.owner_organisation as string | null) ?? null,
   };
@@ -385,7 +387,7 @@ export async function getRequestsWithItemNames(
 ): Promise<RequestWithItemRow[]> {
   const rows = status
     ? await sql`
-        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.deposit_required as item_deposit_required, i.owner_id, o.organisation as owner_organisation
         from loan_requests r
         left join equipment_items i on i.id = r.item_id
         left join users o on o.id = i.owner_id
@@ -393,7 +395,7 @@ export async function getRequestsWithItemNames(
         order by r.created_at desc
       `
     : await sql`
-        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.deposit_required as item_deposit_required, i.owner_id, o.organisation as owner_organisation
         from loan_requests r
         left join equipment_items i on i.id = r.item_id
         left join users o on o.id = i.owner_id
@@ -409,7 +411,7 @@ export async function getRequestsForOwner(
 ): Promise<RequestWithItemRow[]> {
   const rows = status
     ? await sql`
-        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.deposit_required as item_deposit_required, i.owner_id, o.organisation as owner_organisation
         from loan_requests r
         join equipment_items i on i.id = r.item_id
         left join users o on o.id = i.owner_id
@@ -417,7 +419,7 @@ export async function getRequestsForOwner(
         order by r.created_at desc
       `
     : await sql`
-        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.owner_id, o.organisation as owner_organisation
+        select r.*, coalesce(i.name, 'Unknown item') as item_name, i.deposit_required as item_deposit_required, i.owner_id, o.organisation as owner_organisation
         from loan_requests r
         join equipment_items i on i.id = r.item_id
         left join users o on o.id = i.owner_id

@@ -3,12 +3,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser } from "@/lib/use-require-user";
 import AdminNav from "@/components/AdminNav";
-import type { LoanRequestStatus } from "@/lib/types";
+import type { DepositChargeStatus, LoanRequestStatus } from "@/lib/types";
 
 interface RequestWithItem {
   id: string;
   userId: string;
   itemName: string;
+  itemDepositRequired: number;
   requesterName: string;
   requesterEmail: string;
   requesterOrganisation: string;
@@ -24,6 +25,10 @@ interface RequestWithItem {
   termsAccepted: boolean;
   termsVersion: string;
   createdAt: string;
+  stripeCustomerId: string | null;
+  stripePaymentMethodId: string | null;
+  depositChargeStatus: DepositChargeStatus;
+  depositChargedAt: string | null;
 }
 
 const TABS: { label: string; value: LoanRequestStatus | "all" }[] = [
@@ -69,6 +74,18 @@ export default function AdminRequestsPage() {
       body: JSON.stringify({ badHire: !request.badHire }),
     });
     setBusyId(null);
+    load();
+  }
+
+  async function chargeDeposit(request: RequestWithItem) {
+    setBusyId(request.id);
+    const res = await fetch(`/api/admin/requests/${request.id}/charge-deposit`, { method: "POST" });
+    const data = await res.json();
+    setBusyId(null);
+    if (!res.ok) {
+      alert(data.error ?? "Could not charge the deposit.");
+      return;
+    }
     load();
   }
 
@@ -159,6 +176,30 @@ export default function AdminRequestsPage() {
                 >
                   {r.badHire ? "Clear bad hire flag" : "Flag as bad hire"}
                 </button>
+                {r.itemDepositRequired > 0 && r.depositChargeStatus === "charged" && (
+                  <span className="ml-2 font-tag text-xs uppercase tracking-wide text-brick">Charged ✓</span>
+                )}
+                {r.itemDepositRequired > 0 && r.depositChargeStatus !== "charged" && (
+                  <button
+                    type="button"
+                    onClick={() => chargeDeposit(r)}
+                    disabled={
+                      busyId === r.id ||
+                      !r.badHire ||
+                      (r.depositChargeStatus !== "card_saved" && r.depositChargeStatus !== "failed")
+                    }
+                    title={
+                      !r.badHire
+                        ? "Flag as bad hire first"
+                        : r.depositChargeStatus === "none"
+                        ? "No card on file"
+                        : undefined
+                    }
+                    className="transition-standard ml-2 rounded-full border border-brick px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-brick hover:bg-brick hover:text-canvas disabled:opacity-40"
+                  >
+                    Charge deposit
+                  </button>
+                )}
               </div>
 
               {r.status === "pending" && (
