@@ -1,6 +1,6 @@
 # Stripe deposit payments — design
 
-Status: approved by user, pending spec sign-off
+Status: approved
 Date: 2026-10-09
 
 ## Purpose
@@ -131,7 +131,10 @@ For a request with `status === "approved"`:
   reads `session.metadata.requestId`, `session.customer`, and
   `session.setup_intent` → fetches the SetupIntent to get
   `payment_method` → calls `saveStripePaymentMethod(requestId, customerId,
-  paymentMethodId)`.
+  paymentMethodId)` → creates a notification to the borrower
+  (type: new `"payment_method_saved"` added to `NotificationType`,
+  message e.g. "Your card is on file for the {item} loan.", link to
+  `/requests`).
 - Ignores all other event types (returns 200 so Stripe doesn't retry).
 - This route is the single source of truth for "card saved" — the
   success_url redirect is UX only, never writes state itself.
@@ -146,7 +149,7 @@ For a request with `status === "approved"`:
   ```ts
   stripe.paymentIntents.create({
     amount: depositRequired * 100, // cents; ComRes stores whole-currency-unit ints
-    currency: "zar", // ComRes is a South African platform — matches existing deposit display
+    currency: "aud", // confirmed with user
     customer: stripeCustomerId,
     payment_method: stripePaymentMethodId,
     off_session: true,
@@ -181,12 +184,10 @@ button:
 ## Currency
 
 Existing `depositRequired` is a plain integer with no currency field
-anywhere in the schema or UI — it's displayed as a bare number. Checking the
-item detail/edit pages confirms no "R" or currency symbol is rendered
-either. This spec assumes ZAR (South Africa, matching "Community Resource
-Network SA") since that's the only locale signal in the codebase (org
-addresses, phone format elsewhere). **This is an assumption, not confirmed
-with the user** — flagged explicitly for the spec review step.
+anywhere in the schema or UI — it's displayed as a bare number. Confirmed
+with the user: deposits are in **AUD**. The PaymentIntent is created with
+`currency: "aud"`; display text elsewhere (notifications, admin UI) uses a
+plain "$" prefix, matching the existing bare-number display style.
 
 ## Environment variables
 
@@ -218,9 +219,7 @@ with the user** — flagged explicitly for the spec review step.
   can be deleted via the dashboard or left — they cost nothing and carry no
   real data.
 
-## Open questions for spec review
+## Resolved (was open questions)
 
-1. **Currency = ZAR?** Assumed above; no currency field exists today to
-   confirm against.
-2. **Notification to borrower on card save?** Not currently planned
-   (silent success, just the UI state change) — add one?
+1. **Currency** — AUD, confirmed with user.
+2. **Notification to borrower on card save** — yes, confirmed; added above.
