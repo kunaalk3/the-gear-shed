@@ -59,7 +59,12 @@ create table if not exists loan_requests (
   reviewed_at text,
   terms_accepted boolean not null default false,
   terms_version text not null default 'v1',
-  bad_hire boolean not null default false
+  bad_hire boolean not null default false,
+  stripe_customer_id text,
+  stripe_payment_method_id text,
+  deposit_charge_status text not null default 'none'
+    check (deposit_charge_status in ('none', 'card_saved', 'charged', 'failed')),
+  deposit_charged_at text
 );
 
 create table if not exists feedback (
