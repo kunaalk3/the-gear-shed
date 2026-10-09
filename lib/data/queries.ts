@@ -96,6 +96,10 @@ function mapRequest(row: Row): LoanRequest {
     termsAccepted: row.terms_accepted as boolean,
     termsVersion: row.terms_version as string,
     badHire: row.bad_hire as boolean,
+    stripeCustomerId: (row.stripe_customer_id as string | null) ?? null,
+    stripePaymentMethodId: (row.stripe_payment_method_id as string | null) ?? null,
+    depositChargeStatus: row.deposit_charge_status as LoanRequest["depositChargeStatus"],
+    depositChargedAt: (row.deposit_charged_at as string | null) ?? null,
   };
 }
 
@@ -491,6 +495,39 @@ export async function setBadHire(id: string, badHire: boolean): Promise<LoanRequ
   const rows = await sql`
     update loan_requests set bad_hire = ${badHire}
     where id = ${id}
+    returning *
+  `;
+  return rows[0] ? mapRequest(rows[0]) : null;
+}
+
+/** Records a saved card against a request. Only the Stripe webhook handler should call this. */
+export async function saveStripePaymentMethod(
+  requestId: string,
+  customerId: string,
+  paymentMethodId: string
+): Promise<LoanRequest | null> {
+  const rows = await sql`
+    update loan_requests
+    set stripe_customer_id = ${customerId},
+        stripe_payment_method_id = ${paymentMethodId},
+        deposit_charge_status = 'card_saved'
+    where id = ${requestId}
+    returning *
+  `;
+  return rows[0] ? mapRequest(rows[0]) : null;
+}
+
+/** Records the outcome of a deposit charge attempt. */
+export async function setDepositChargeResult(
+  requestId: string,
+  status: "charged" | "failed",
+  chargedAt: string | null
+): Promise<LoanRequest | null> {
+  const rows = await sql`
+    update loan_requests
+    set deposit_charge_status = ${status},
+        deposit_charged_at = ${chargedAt}
+    where id = ${requestId}
     returning *
   `;
   return rows[0] ? mapRequest(rows[0]) : null;

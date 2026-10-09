@@ -72,6 +72,8 @@ export type PublicUser = Omit<User, "passwordHash">;
 
 export type LoanRequestStatus = "pending" | "approved" | "declined";
 
+export type DepositChargeStatus = "none" | "card_saved" | "charged" | "failed";
+
 export interface LoanRequest {
   id: string;
   itemId: string;
@@ -91,6 +93,10 @@ export interface LoanRequest {
   termsAccepted: boolean;
   termsVersion: string;
   badHire: boolean;
+  stripeCustomerId: string | null;
+  stripePaymentMethodId: string | null;
+  depositChargeStatus: DepositChargeStatus;
+  depositChargedAt: string | null;
 }
 
 export interface Feedback {
@@ -107,7 +113,9 @@ export type NotificationType =
   | "request_declined"
   | "org_approved"
   | "org_rejected"
-  | "new_org_pending";
+  | "new_org_pending"
+  | "payment_method_saved"
+  | "deposit_charged";
 
 export interface AppNotification {
   id: string;

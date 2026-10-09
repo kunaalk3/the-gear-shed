@@ -93,6 +93,10 @@ export async function POST(request: NextRequest) {
       termsAccepted: true,
       termsVersion: CURRENT_TERMS_VERSION,
       badHire: false,
+      stripeCustomerId: null,
+      stripePaymentMethodId: null,
+      depositChargeStatus: "none",
+      depositChargedAt: null,
     },
     {
       id: randomUUID(),
