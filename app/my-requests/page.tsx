@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRequireUser } from "@/lib/use-require-user";
 import type { LoanRequest } from "@/lib/types";
 
-type RequestWithItem = LoanRequest & { itemName: string; reviewed: boolean };
+type RequestWithItem = LoanRequest & { itemName: string; itemDepositRequired: number; reviewed: boolean };
 
 const statusStyle: Record<string, string> = {
   pending: "bg-amber/20 text-amber-dark",
@@ -20,6 +20,11 @@ export default function MyRequestsPage() {
   const [requests, setRequests] = useState<RequestWithItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (redirectUrl) window.location.href = redirectUrl;
+  }, [redirectUrl]);
 
   const load = useCallback(() => {
     fetch("/api/requests/mine")
@@ -36,6 +41,16 @@ export default function MyRequestsPage() {
   function handleReviewed(requestId: string) {
     setReviewingId(null);
     setRequests((list) => list.map((r) => (r.id === requestId ? { ...r, reviewed: true } : r)));
+  }
+
+  async function startCardSetup(requestId: string) {
+    const res = await fetch(`/api/requests/${requestId}/setup-card`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error ?? "Could not start payment setup.");
+      return;
+    }
+    setRedirectUrl(data.url);
   }
 
   if (!ready) {
@@ -75,6 +90,33 @@ export default function MyRequestsPage() {
                     </p>
                     {r.status === "declined" && r.adminNote && (
                       <p className="mt-1 font-body text-sm text-brick">Reason: {r.adminNote}</p>
+                    )}
+                    {r.itemDepositRequired > 0 && r.status === "approved" && r.depositChargeStatus === "none" && (
+                      <button
+                        type="button"
+                        onClick={() => startCardSetup(r.id)}
+                        className="transition-standard mt-2 w-fit rounded-full border border-pine px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-pine hover:bg-pine hover:text-canvas"
+                      >
+                        Add payment method
+                      </button>
+                    )}
+                    {r.itemDepositRequired > 0 && r.depositChargeStatus === "card_saved" && (
+                      <p className="mt-2 font-tag text-xs uppercase tracking-wide text-moss">Card on file</p>
+                    )}
+                    {r.itemDepositRequired > 0 && r.depositChargeStatus === "charged" && (
+                      <p className="mt-2 font-tag text-xs uppercase tracking-wide text-brick">Deposit charged</p>
+                    )}
+                    {r.itemDepositRequired > 0 && r.depositChargeStatus === "failed" && (
+                      <div className="mt-2">
+                        <p className="font-tag text-xs uppercase tracking-wide text-brick">Payment method issue</p>
+                        <button
+                          type="button"
+                          onClick={() => startCardSetup(r.id)}
+                          className="transition-standard mt-1 w-fit rounded-full border border-pine px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-pine hover:bg-pine hover:text-canvas"
+                        >
+                          Add a new card
+                        </button>
+                      </div>
                     )}
                   </div>
                   <span

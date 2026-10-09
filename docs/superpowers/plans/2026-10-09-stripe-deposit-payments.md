@@ -701,9 +701,23 @@ git commit -m "Add admin endpoint to charge a saved deposit card"
 **Interfaces:**
 - Consumes: `POST /api/requests/:id/setup-card` (Task 4). `RequestWithItem` type in this file must read the new `LoanRequest` fields from Task 3 (it's `type RequestWithItem = LoanRequest & { ... }`, so it inherits them automatically — no type edit needed here).
 
+**Deviations found during implementation (both applied, see actual files for ground truth):**
+1. `getRequestsForUser` (consumed by this page via `/api/requests/mine`) didn't select the item's `deposit_required` at all — needed it added as `itemDepositRequired` so the UI can hide payment controls entirely for zero-deposit items (the spec's "if `depositRequired === 0`, skip all of this" requirement, which this task's original steps below didn't actually implement).
+2. `window.location.href = data.url` directly inside `startCardSetup` fails this repo's `react-hooks/immutability` eslint rule (global mutation inside a component-scoped function). Fixed via a `redirectUrl` state + `useEffect` that performs the navigation, per the lint rule's own suggested pattern.
+
 - [ ] **Step 1: Add a handler and the per-row UI block**
 
-In `app/my-requests/page.tsx`, add a new function near `handleReviewed`:
+In `app/my-requests/page.tsx`, add state + effect near the other `useState` calls:
+
+```ts
+  const [redirectUrl, setRedirectUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (redirectUrl) window.location.href = redirectUrl;
+  }, [redirectUrl]);
+```
+
+Add a new function near `handleReviewed`:
 
 ```ts
   async function startCardSetup(requestId: string) {
@@ -713,14 +727,14 @@ In `app/my-requests/page.tsx`, add a new function near `handleReviewed`:
       alert(data.error ?? "Could not start payment setup.");
       return;
     }
-    window.location.href = data.url;
+    setRedirectUrl(data.url);
   }
 ```
 
-Then, inside the `.map((r) => { ... })` block, immediately after the closing of the `{r.status === "declined" && r.adminNote && (...)}` block and before the closing `</div>` of that first flex column (i.e. right after the existing declined-note paragraph, still inside the `<div>` that holds `itemName`), add:
+Then, inside the `.map((r) => { ... })` block, immediately after the closing of the `{r.status === "declined" && r.adminNote && (...)}` block and before the closing `</div>` of that first flex column (i.e. right after the existing declined-note paragraph, still inside the `<div>` that holds `itemName`), add (note every branch is gated on `r.itemDepositRequired > 0`):
 
 ```tsx
-                    {r.status === "approved" && r.depositChargeStatus === "none" && (
+                    {r.itemDepositRequired > 0 && r.status === "approved" && r.depositChargeStatus === "none" && (
                       <button
                         type="button"
                         onClick={() => startCardSetup(r.id)}
@@ -729,13 +743,13 @@ Then, inside the `.map((r) => { ... })` block, immediately after the closing of 
                         Add payment method
                       </button>
                     )}
-                    {r.depositChargeStatus === "card_saved" && (
+                    {r.itemDepositRequired > 0 && r.depositChargeStatus === "card_saved" && (
                       <p className="mt-2 font-tag text-xs uppercase tracking-wide text-moss">Card on file</p>
                     )}
-                    {r.depositChargeStatus === "charged" && (
+                    {r.itemDepositRequired > 0 && r.depositChargeStatus === "charged" && (
                       <p className="mt-2 font-tag text-xs uppercase tracking-wide text-brick">Deposit charged</p>
                     )}
-                    {r.depositChargeStatus === "failed" && (
+                    {r.itemDepositRequired > 0 && r.depositChargeStatus === "failed" && (
                       <div className="mt-2">
                         <p className="font-tag text-xs uppercase tracking-wide text-brick">Payment method issue</p>
                         <button
@@ -748,6 +762,10 @@ Then, inside the `.map((r) => { ... })` block, immediately after the closing of 
                       </div>
                     )}
 ```
+
+Also update `type RequestWithItem = LoanRequest & { itemName: string; reviewed: boolean };` to
+`type RequestWithItem = LoanRequest & { itemName: string; itemDepositRequired: number; reviewed: boolean };`,
+and update `getRequestsForUser` in `lib/data/queries.ts` to select and return `itemDepositRequired` (see actual file).
 
 - [ ] **Step 2: Type-check**
 

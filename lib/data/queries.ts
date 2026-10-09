@@ -429,15 +429,19 @@ export async function getRequestsForOwner(
 
 export async function getRequestsForUser(
   userId: string
-): Promise<(LoanRequest & { itemName: string })[]> {
+): Promise<(LoanRequest & { itemName: string; itemDepositRequired: number })[]> {
   const rows = await sql`
-    select r.*, coalesce(i.name, 'Unknown item') as item_name
+    select r.*, coalesce(i.name, 'Unknown item') as item_name, coalesce(i.deposit_required, 0) as item_deposit_required
     from loan_requests r
     left join equipment_items i on i.id = r.item_id
     where r.user_id = ${userId}
     order by r.created_at desc
   `;
-  return rows.map((row) => ({ ...mapRequest(row), itemName: row.item_name as string }));
+  return rows.map((row) => ({
+    ...mapRequest(row),
+    itemName: row.item_name as string,
+    itemDepositRequired: row.item_deposit_required as number,
+  }));
 }
 
 export async function getRequestById(id: string): Promise<LoanRequest | null> {
