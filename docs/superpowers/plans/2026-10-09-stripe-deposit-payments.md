@@ -425,7 +425,8 @@ export async function POST(
   const session = await stripe.checkout.sessions.create({
     mode: "setup",
     customer: customerId,
-    payment_method_types: ["card"],
+    currency: "aud",
+    allowed_payment_method_types: ["card"], // installed stripe v23 types no longer accept payment_method_types here
     success_url: `${origin}/my-requests?payment=saved`,
     cancel_url: `${origin}/my-requests?payment=cancelled`,
     metadata: { requestId: id },
