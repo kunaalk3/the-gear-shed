@@ -31,21 +31,42 @@ export function ImagePicker({ images, onChange }: ImagePickerProps) {
 
     setUploading(true);
     const uploaded: string[] = [];
-    for (const file of files) {
-      const body = new FormData();
-      body.append("file", file);
-      const res = await fetch("/api/uploads", { method: "POST", body });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error ?? "Couldn't upload that image.");
-        continue;
+    try {
+      for (const file of files) {
+        try {
+          const body = new FormData();
+          body.append("file", file);
+          const res = await fetch("/api/uploads", { method: "POST", body });
+          const data: unknown = await res.json().catch(() => null);
+          const errorMessage =
+            data && typeof data === "object" && "error" in data && typeof data.error === "string"
+              ? data.error
+              : null;
+
+          if (!res.ok) {
+            setError(errorMessage ?? `Couldn't upload that image (HTTP ${res.status}).`);
+            continue;
+          }
+
+          const url =
+            data && typeof data === "object" && "url" in data && typeof data.url === "string"
+              ? data.url
+              : null;
+          if (!url) {
+            setError("The upload service returned an invalid response.");
+            continue;
+          }
+          uploaded.push(url);
+        } catch {
+          setError("Couldn't reach the image upload service. Check your connection and retry.");
+        }
       }
-      uploaded.push(data.url as string);
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
     }
 
-    setUploading(false);
     if (uploaded.length) onChange([...images, ...uploaded]);
-    if (inputRef.current) inputRef.current.value = "";
   }
 
   function removeImage(url: string) {

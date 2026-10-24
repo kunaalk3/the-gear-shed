@@ -50,26 +50,42 @@ export default function RequestPage() {
 
     setSubmitting(true);
 
-    const res = await fetch("/api/requests", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        itemId: id,
-        startDate,
-        endDate,
-        quantity: Number(quantity) || 1,
-        notes,
-        termsAccepted,
-      }),
-    });
-    const data = await res.json();
-    setSubmitting(false);
+    try {
+      const res = await fetch("/api/requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: id,
+          startDate,
+          endDate,
+          quantity: Number(quantity) || 1,
+          notes,
+          termsAccepted,
+        }),
+      });
+      const data: { error?: unknown; request?: LoanRequest } | null =
+        await res.json().catch(() => null);
 
-    if (!res.ok) {
-      setError(data.error ?? "Something went wrong.");
-      return;
+      if (!res.ok) {
+        setError(
+          typeof data?.error === "string"
+            ? data.error
+            : "We couldn't send your request. Please try again."
+        );
+        return;
+      }
+
+      if (!data?.request) {
+        setError("We couldn't confirm your request. Please try again.");
+        return;
+      }
+
+      setConfirmation(data.request);
+    } catch {
+      setError("Unable to send your request. Please check your connection and try again.");
+    } finally {
+      setSubmitting(false);
     }
-    setConfirmation(data.request);
   }
 
   if (authLoading || itemLoading) {

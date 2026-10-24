@@ -21,7 +21,8 @@ export async function POST(
   const { note } = body ?? {};
 
   // Declining frees the reserved quantity straight back up.
-  const updated = await declineRequest(id, note ? String(note).trim() : "");
+  const updated = await declineRequest(id, note ? String(note).trim() : "", auth.user.id);
+  if (!updated) return NextResponse.json({ error: "Only pending requests can be declined." }, { status: 409 });
   const item = await getItemById(existing.itemId, { includeRetired: true });
   await notifyUser(
     existing.userId,

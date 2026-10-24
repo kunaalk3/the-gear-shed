@@ -7,7 +7,16 @@ import { useAuth } from "@/lib/auth-context";
 import { useRequireUser } from "@/lib/use-require-user";
 import { FormField, FormTextarea } from "@/components/FormField";
 import { ImagePicker } from "@/components/ImagePicker";
-import { CATEGORIES, type Category } from "@/lib/types";
+import {
+  CATEGORIES,
+  EQUIPMENT_CONDITION_LABELS,
+  EQUIPMENT_CONDITIONS,
+  TRANSACTION_TYPE_LABELS,
+  TRANSACTION_TYPES,
+  type Category,
+  type EquipmentCondition,
+  type TransactionType,
+} from "@/lib/types";
 
 export default function NewOrgItemPage() {
   const { ready } = useRequireUser({ role: "org" });
@@ -18,6 +27,10 @@ export default function NewOrgItemPage() {
   const [category, setCategory] = useState<Category>(CATEGORIES[0]);
   const [description, setDescription] = useState("");
   const [totalQuantity, setTotalQuantity] = useState("1");
+  const [transactionType, setTransactionType] = useState<TransactionType>("temporary_free_loan");
+  const [hireFee, setHireFee] = useState("0");
+  const [condition, setCondition] = useState<EquipmentCondition>("unknown");
+  const [conditionNotes, setConditionNotes] = useState("");
   const [depositRequired, setDepositRequired] = useState("0");
   const [bookingConditions, setBookingConditions] = useState("");
   const [cancellationRules, setCancellationRules] = useState("");
@@ -72,6 +85,10 @@ export default function NewOrgItemPage() {
         category,
         description,
         totalQuantity: Number(totalQuantity) || 1,
+        transactionType,
+        hireFee: transactionType === "paid_hire" ? Number(hireFee) || 0 : 0,
+        condition,
+        conditionNotes,
         depositRequired: Number(depositRequired) || 0,
         bookingConditions,
         cancellationRules,
@@ -124,6 +141,54 @@ export default function NewOrgItemPage() {
           rows={3}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
+        />
+
+        <label className="flex flex-col gap-1.5 font-body text-sm">
+          <span className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/60">Transaction type</span>
+          <select
+            value={transactionType}
+            onChange={(e) => {
+              const value = e.target.value as TransactionType;
+              setTransactionType(value);
+              if (value !== "paid_hire") setHireFee("0");
+            }}
+            className="rounded-lg border border-canvas-line bg-white/70 px-3.5 py-2.5 outline-none focus:border-pine focus-visible:ring-2 focus-visible:ring-pine"
+          >
+            {TRANSACTION_TYPES.map((value) => (
+              <option key={value} value={value}>{TRANSACTION_TYPE_LABELS[value]}</option>
+            ))}
+          </select>
+        </label>
+
+        {transactionType === "paid_hire" && (
+          <FormField
+            label="Hire fee ($, whole dollars)"
+            type="number"
+            min={0}
+            step={1}
+            value={hireFee}
+            onChange={(e) => setHireFee(e.target.value)}
+            onBlur={() => setHireFee((value) => (value.trim() === "" ? "0" : value))}
+          />
+        )}
+
+        <label className="flex flex-col gap-1.5 font-body text-sm">
+          <span className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/60">Physical condition</span>
+          <select
+            value={condition}
+            onChange={(e) => setCondition(e.target.value as EquipmentCondition)}
+            className="rounded-lg border border-canvas-line bg-white/70 px-3.5 py-2.5 outline-none focus:border-pine focus-visible:ring-2 focus-visible:ring-pine"
+          >
+            {EQUIPMENT_CONDITIONS.map((value) => (
+              <option key={value} value={value}>{EQUIPMENT_CONDITION_LABELS[value]}</option>
+            ))}
+          </select>
+        </label>
+        <FormTextarea
+          label="Condition notes (optional)"
+          rows={2}
+          value={conditionNotes}
+          onChange={(e) => setConditionNotes(e.target.value)}
         />
 
         <div className="grid grid-cols-2 gap-4">

@@ -3,7 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRequireUser } from "@/lib/use-require-user";
 import AdminNav from "@/components/AdminNav";
-import type { DepositChargeStatus, LoanRequestStatus } from "@/lib/types";
+import RequestCancellation from "@/components/RequestCancellation";
+import RequestStatusHistory from "@/components/RequestStatusHistory";
+import FulfillmentActions from "@/components/FulfillmentActions";
+import type {
+  BookingPayment,
+  LoanRequestStatus,
+  RequestStatusHistory as RequestStatusHistoryEntry,
+} from "@/lib/types";
 
 interface RequestWithItem {
   id: string;
@@ -18,6 +25,10 @@ interface RequestWithItem {
   quantity: number;
   notes: string;
   status: LoanRequestStatus;
+  bookingId: string | null;
+  bookingStatus: "pending" | "approved" | "cancelled" | null;
+  fulfillmentStatus: "not_started" | "collected" | "returned" | "donation_completed" | "legacy_unknown" | null;
+  transactionType: "paid_hire" | "temporary_free_loan" | "permanent_donation" | null;
   adminNote: string;
   badHire: boolean;
   ownerId: string | null;
@@ -27,37 +38,61 @@ interface RequestWithItem {
   createdAt: string;
   stripeCustomerId: string | null;
   stripePaymentMethodId: string | null;
-  depositChargeStatus: DepositChargeStatus;
-  depositChargedAt: string | null;
+  bookingPayments: BookingPayment[];
+  statusHistory: RequestStatusHistoryEntry[];
 }
 
 const TABS: { label: string; value: LoanRequestStatus | "all" }[] = [
   { label: "Pending", value: "pending" },
   { label: "Approved", value: "approved" },
   { label: "Declined", value: "declined" },
+  { label: "Cancelled", value: "cancelled" },
   { label: "All", value: "all" },
 ];
 
 export default function AdminRequestsPage() {
-  const { ready } = useRequireUser({ role: "admin" });
+  const { ready, user } = useRequireUser({ role: "admin" });
   const [requests, setRequests] = useState<RequestWithItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedUser, setLoadedUser] = useState<typeof user>();
+  const [refreshing, setRefreshing] = useState(false);
+  const loading = refreshing || (ready && loadedUser !== user);
   const [filter, setFilter] = useState<LoanRequestStatus | "all">("pending");
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetch("/api/admin/requests")
+  const fetchRequests = useCallback((): Promise<RequestWithItem[]> => {
+    return fetch("/api/admin/requests")
       .then((r) => r.json())
-      .then((data) => setRequests(data.requests ?? []))
-      .finally(() => setLoading(false));
+      .then((data) => data.requests ?? []);
   }, []);
 
+  const load = useCallback(() => {
+    setRefreshing(true);
+    fetchRequests()
+      .then(setRequests)
+      .finally(() => {
+        setLoadedUser(user);
+        setRefreshing(false);
+      });
+  }, [fetchRequests, user]);
+
   useEffect(() => {
-    if (ready) load();
-  }, [ready, load]);
+    if (!ready) return;
+
+    let active = true;
+    fetchRequests()
+      .then((data) => {
+        if (active) setRequests(data);
+      })
+      .finally(() => {
+        if (active) setLoadedUser(user);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [ready, user, fetchRequests]);
 
   async function approve(id: string) {
     setBusyId(id);
@@ -77,16 +112,23 @@ export default function AdminRequestsPage() {
     load();
   }
 
-  async function chargeDeposit(request: RequestWithItem) {
+  async function refundPayment(request: RequestWithItem, paymentKind: BookingPayment["kind"]) {
     setBusyId(request.id);
-    const res = await fetch(`/api/admin/requests/${request.id}/charge-deposit`, { method: "POST" });
-    const data = await res.json();
-    setBusyId(null);
-    if (!res.ok) {
-      alert(data.error ?? "Could not charge the deposit.");
-      return;
+    try {
+      const response = await fetch(`/api/admin/requests/${request.id}/payments/refund`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentKind }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        alert(data.error ?? "Could not process the refund.");
+        return;
+      }
+      load();
+    } finally {
+      setBusyId(null);
     }
-    load();
   }
 
   async function decline(id: string) {
@@ -163,6 +205,22 @@ export default function AdminRequestsPage() {
                 </div>
               </div>
 
+              <RequestStatusHistory events={r.statusHistory} />
+              {r.bookingId && r.bookingStatus && r.fulfillmentStatus && r.transactionType && (
+                <FulfillmentActions
+                  bookingId={r.bookingId}
+                  bookingStatus={r.bookingStatus}
+                  fulfillmentStatus={r.fulfillmentStatus}
+                  transactionType={r.transactionType}
+                  onChanged={load}
+                />
+              )}
+              {(r.status === "pending" || r.status === "approved") && (
+                <div className="mt-3">
+                  <RequestCancellation requestId={r.id} onCancelled={load} />
+                </div>
+              )}
+
               <div className="mt-3 border-t border-dashed border-canvas-line pt-3">
                 <button
                   type="button"
@@ -176,31 +234,37 @@ export default function AdminRequestsPage() {
                 >
                   {r.badHire ? "Clear bad hire flag" : "Flag as bad hire"}
                 </button>
-                {r.itemDepositRequired > 0 && r.depositChargeStatus === "charged" && (
-                  <span className="ml-2 font-tag text-xs uppercase tracking-wide text-brick">Charged ✓</span>
-                )}
-                {r.itemDepositRequired > 0 && r.depositChargeStatus !== "charged" && (
-                  <button
-                    type="button"
-                    onClick={() => chargeDeposit(r)}
-                    disabled={
-                      busyId === r.id ||
-                      !r.badHire ||
-                      (r.depositChargeStatus !== "card_saved" && r.depositChargeStatus !== "failed")
-                    }
-                    title={
-                      !r.badHire
-                        ? "Flag as bad hire first"
-                        : r.depositChargeStatus === "none"
-                        ? "No card on file"
-                        : undefined
-                    }
-                    className="transition-standard ml-2 rounded-full border border-brick px-4 py-1.5 font-tag text-xs uppercase tracking-wide text-brick hover:bg-brick hover:text-canvas disabled:opacity-40"
-                  >
-                    Charge deposit
-                  </button>
-                )}
               </div>
+              {r.bookingPayments?.length > 0 && (
+                <div className="mt-3 border-t border-dashed border-canvas-line pt-3">
+                  <p className="font-tag text-xs uppercase tracking-wide text-ink/60">Payments</p>
+                  {r.bookingPayments.map((payment) => (
+                    <div key={payment.id} className="mt-1 flex flex-wrap items-center gap-2 font-body text-sm">
+                      <span>
+                        {payment.kind === "hire_fee" ? "Hire fee" : "Deposit"}:
+                        {" "}${(payment.amountCents / 100).toFixed(2)} · {paymentStatusLabel(payment.status)}
+                      </span>
+                      {((payment.kind === "deposit" && payment.status === "manual_review") ||
+                        payment.status === "refund_failed" ||
+                        (r.status === "cancelled" && payment.status === "succeeded") ||
+                        payment.status === "refund_pending") && (
+                          <button
+                            type="button"
+                            onClick={() => refundPayment(r, payment.kind)}
+                            disabled={busyId === r.id}
+                            className="rounded-full border border-pine px-3 py-1 font-tag text-[0.65rem] uppercase tracking-wide text-pine disabled:opacity-50"
+                          >
+                            {payment.status === "manual_review"
+                              ? "Approve deposit refund"
+                              : payment.status === "succeeded"
+                                ? "Retry cancellation refund"
+                                : "Retry refund"}
+                          </button>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {r.status === "pending" && (
                 <div className="mt-3 border-t border-dashed border-canvas-line pt-3">
@@ -274,6 +338,7 @@ function StatusBadge({ status }: { status: LoanRequestStatus }) {
     pending: "bg-amber/20 text-amber-dark",
     approved: "bg-moss/20 text-moss",
     declined: "bg-brick/20 text-brick",
+    cancelled: "bg-ink/10 text-ink/60",
   };
   return (
     <span className={`w-fit shrink-0 rounded-full px-3 py-1 font-tag text-xs uppercase tracking-wide ${styles[status]}`}>
@@ -286,4 +351,19 @@ function Loading() {
   return (
     <p className="mx-auto max-w-md px-5 py-16 font-tag text-sm uppercase tracking-wide text-ink/50">Loading…</p>
   );
+}
+
+function paymentStatusLabel(status: BookingPayment["status"]): string {
+  const labels: Record<BookingPayment["status"], string> = {
+    awaiting_payment_method: "Awaiting payment method",
+    pending: "Payment pending",
+    processing: "Processing",
+    succeeded: "Paid",
+    failed: "Payment failed",
+    refund_pending: "Refund processing",
+    refunded: "Refunded",
+    refund_failed: "Refund failed",
+    manual_review: "Manual review required",
+  };
+  return labels[status];
 }

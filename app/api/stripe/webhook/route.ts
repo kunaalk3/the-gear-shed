@@ -1,8 +1,15 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { stripe } from "@/lib/stripe";
-import { saveStripePaymentMethod, getRequestById } from "@/lib/data/queries";
-import { notifyUser } from "@/lib/notify";
+import {
+  saveStripePaymentMethod,
+  getRequestById,
+  updateBookingPaymentFromRefund,
+} from "@/lib/data/queries";
+import { notifyUserOnce } from "@/lib/notify";
+import { stripeWebhookNotificationId } from "@/lib/payment-idempotency";
+import { assertStripeTestMode } from "@/lib/stripe";
+import { chargeApprovedBooking, reconcilePaymentIntent } from "@/lib/booking-payment-workflow";
 
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
@@ -24,16 +31,27 @@ export async function POST(request: Request) {
     const session = event.data.object as Stripe.Checkout.Session;
     if (session.mode === "setup" && session.metadata?.requestId) {
       const requestId = session.metadata.requestId;
-      const customerId = session.customer as string;
-      const setupIntentId = session.setup_intent as string;
+      const customerId = typeof session.customer === "string" ? session.customer : null;
+      const setupIntentId = typeof session.setup_intent === "string" ? session.setup_intent : null;
+      if (!customerId || !setupIntentId) {
+        return NextResponse.json({ error: "Completed setup session is missing Stripe references." }, { status: 500 });
+      }
+      assertStripeTestMode();
       const setupIntent = await stripe.setupIntents.retrieve(setupIntentId);
-      const paymentMethodId = setupIntent.payment_method as string;
+      const paymentMethodId = typeof setupIntent.payment_method === "string"
+        ? setupIntent.payment_method
+        : setupIntent.payment_method?.id;
+      if (!paymentMethodId) {
+        return NextResponse.json({ error: "Completed setup intent has no payment method." }, { status: 500 });
+      }
 
       await saveStripePaymentMethod(requestId, customerId, paymentMethodId);
+      await chargeApprovedBooking(requestId);
 
       const existing = await getRequestById(requestId);
       if (existing) {
-        await notifyUser(
+        await notifyUserOnce(
+          stripeWebhookNotificationId(event.id),
           existing.userId,
           "payment_method_saved",
           "Your card is on file for your approved loan.",
@@ -41,6 +59,14 @@ export async function POST(request: Request) {
         );
       }
     }
+  }
+
+  if (event.type === "payment_intent.succeeded" || event.type === "payment_intent.payment_failed") {
+    await reconcilePaymentIntent(event.data.object as Stripe.PaymentIntent);
+  }
+  if (event.type === "refund.updated") {
+    const refund = event.data.object as Stripe.Refund;
+    await updateBookingPaymentFromRefund(refund.id, refund.status ?? "pending");
   }
 
   return NextResponse.json({ received: true });

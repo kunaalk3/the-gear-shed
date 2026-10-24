@@ -338,6 +338,16 @@ for (const r of requests) {
     values (${r.id}, ${r.itemId}, ${r.userId}, ${r.requesterName}, ${r.requesterEmail}, ${r.requesterOrganisation}, ${r.requesterPhone}, ${r.startDate}, ${r.endDate}, ${r.quantity}, ${r.notes}, ${r.status}, ${r.adminNote}, ${r.createdAt}, ${r.reviewedAt})
     on conflict (id) do nothing
   `;
+
+  if (r.status === "pending") {
+    const historyId = createHash("md5").update(`request-created:${r.id}`).digest("hex");
+    await sql`
+      insert into request_status_history
+        (id, request_id, from_status, to_status, actor_user_id, reason, created_at)
+      values (${historyId}, ${r.id}, null, 'pending', ${r.userId}, '', ${r.createdAt})
+      on conflict (id) do nothing
+    `;
+  }
 }
 
 for (const b of bookings) {

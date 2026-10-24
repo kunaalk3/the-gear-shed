@@ -13,33 +13,56 @@ const ALLOWED_TYPES: Record<string, string> = {
 };
 
 export async function POST(request: NextRequest) {
-  const admin = await requireAdmin();
-  const auth = admin.ok ? admin : await requireOrg();
-  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
+  try {
+    const admin = await requireAdmin();
+    const auth = admin.ok ? admin : await requireOrg();
+    if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status });
 
-  const formData = await request.formData().catch(() => null);
-  const file = formData?.get("file");
+    if (!process.env.BLOB_READ_WRITE_TOKEN) {
+      return NextResponse.json(
+        { error: "Image storage is not configured. Set BLOB_READ_WRITE_TOKEN for local development." },
+        { status: 503 }
+      );
+    }
 
-  if (!file || typeof file === "string") {
-    return NextResponse.json({ error: "No file was uploaded." }, { status: 400 });
+    const formData = await request.formData().catch(() => null);
+    const file = formData?.get("file");
+
+    if (!file || typeof file === "string") {
+      return NextResponse.json({ error: "No file was uploaded." }, { status: 400 });
+    }
+    if (!Object.prototype.hasOwnProperty.call(ALLOWED_TYPES, file.type)) {
+      return NextResponse.json({ error: "Only JPG, PNG, WEBP or GIF images are allowed." }, { status: 400 });
+    }
+    if (file.size > MAX_FILE_BYTES) {
+      return NextResponse.json({ error: "Images must be smaller than 8MB." }, { status: 400 });
+    }
+
+    const extension = ALLOWED_TYPES[file.type];
+    const filename = `${randomUUID()}.${extension}`;
+
+    let watermarked: Buffer;
+    try {
+      const original = Buffer.from(await file.arrayBuffer());
+      watermarked = await watermarkImage(original, file.type);
+    } catch {
+      return NextResponse.json({ error: "The uploaded image could not be processed." }, { status: 400 });
+    }
+
+    try {
+      const blob = await put(`uploads/${filename}`, watermarked, {
+        access: "public",
+        contentType: file.type,
+      });
+
+      return NextResponse.json({ url: blob.url }, { status: 201 });
+    } catch {
+      return NextResponse.json(
+        { error: "Image storage could not save this upload. Check the local Blob storage configuration and retry." },
+        { status: 502 }
+      );
+    }
+  } catch {
+    return NextResponse.json({ error: "The upload request could not be completed." }, { status: 500 });
   }
-  if (!(file.type in ALLOWED_TYPES)) {
-    return NextResponse.json({ error: "Only JPG, PNG, WEBP or GIF images are allowed." }, { status: 400 });
-  }
-  if (file.size > MAX_FILE_BYTES) {
-    return NextResponse.json({ error: "Images must be smaller than 8MB." }, { status: 400 });
-  }
-
-  const extension = ALLOWED_TYPES[file.type];
-  const filename = `${randomUUID()}.${extension}`;
-
-  const original = Buffer.from(await file.arrayBuffer());
-  const watermarked = await watermarkImage(original, file.type);
-
-  const blob = await put(`uploads/${filename}`, watermarked, {
-    access: "public",
-    contentType: file.type,
-  });
-
-  return NextResponse.json({ url: blob.url }, { status: 201 });
 }

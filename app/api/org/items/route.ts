@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createItem, getItemsForOwner, itemIdExists } from "@/lib/data/queries";
 import { requireOrg } from "@/lib/auth";
-import { CATEGORIES, type Category } from "@/lib/types";
+import {
+  CATEGORIES,
+  isEquipmentCondition,
+  isTransactionType,
+  parseHireFee,
+  parseNonNegativeInteger,
+  type Category,
+} from "@/lib/types";
 
 function slugify(name: string) {
   return name
@@ -29,6 +36,10 @@ export async function POST(request: NextRequest) {
     description,
     images,
     totalQuantity,
+    transactionType,
+    hireFee,
+    condition,
+    conditionNotes,
     depositRequired,
     bookingConditions,
     cancellationRules,
@@ -39,13 +50,28 @@ export async function POST(request: NextRequest) {
   if (!name || !category || !CATEGORIES.includes(category)) {
     return NextResponse.json({ error: "Name and a valid category are required." }, { status: 400 });
   }
-  const qty = Number(totalQuantity);
-  if (!Number.isInteger(qty) || qty < 1) {
+  const listingType = transactionType === undefined ? "temporary_free_loan" : transactionType;
+  if (!isTransactionType(listingType)) {
+    return NextResponse.json({ error: "Invalid transaction type." }, { status: 400 });
+  }
+  const equipmentCondition = condition === undefined ? "unknown" : condition;
+  if (!isEquipmentCondition(equipmentCondition)) {
+    return NextResponse.json({ error: "Invalid equipment condition." }, { status: 400 });
+  }
+  const fee = hireFee === undefined ? 0 : parseHireFee(hireFee);
+  if (fee === null) {
+    return NextResponse.json({ error: "Hire fee must be a non-negative whole-dollar amount." }, { status: 400 });
+  }
+  if (listingType !== "paid_hire" && fee !== 0) {
+    return NextResponse.json({ error: "Only paid-hire listings can have a hire fee." }, { status: 400 });
+  }
+  const qty = parseNonNegativeInteger(totalQuantity);
+  if (qty === null || qty < 1) {
     return NextResponse.json({ error: "Quantity must be at least 1." }, { status: 400 });
   }
-  const deposit = Number(depositRequired) || 0;
-  if (deposit < 0) {
-    return NextResponse.json({ error: "Deposit can't be negative." }, { status: 400 });
+  const deposit = depositRequired === undefined ? 0 : parseNonNegativeInteger(depositRequired);
+  if (deposit === null) {
+    return NextResponse.json({ error: "Deposit must be a non-negative whole-dollar amount." }, { status: 400 });
   }
 
   const baseSlug = slugify(String(name)) || "item";
@@ -67,6 +93,10 @@ export async function POST(request: NextRequest) {
     description: description ? String(description).trim() : "",
     images: imageList.length ? imageList : [`https://picsum.photos/seed/${id}/640/480`],
     totalQuantity: qty,
+    transactionType: listingType,
+    hireFee: fee,
+    condition: equipmentCondition,
+    conditionNotes: conditionNotes ? String(conditionNotes).trim() : "",
     depositRequired: deposit,
     bookingConditions: bookingConditions ? String(bookingConditions).trim() : "",
     cancellationRules: cancellationRules ? String(cancellationRules).trim() : "",
