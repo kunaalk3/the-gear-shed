@@ -1,14 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
-interface BookingSummary {
-  id: string;
-  startDate: string;
-  endDate: string;
-  quantity: number;
-  status: "pending" | "approved";
-}
+import { availabilityLevel, calendarDateOverride } from "@/lib/availability";
 
 interface BlackoutSummary {
   id: string;
@@ -29,33 +22,15 @@ function isoDate(year: number, month: number, day: number) {
 
 export default function AvailabilityCalendar({
   itemId,
-  totalQuantity,
 }: {
   itemId: string;
-  totalQuantity: number;
 }) {
-  const [bookings, setBookings] = useState<BookingSummary[]>([]);
+  const [availableByDay, setAvailableByDay] = useState<Record<string, number>>({});
+  const [totalQuantity, setTotalQuantity] = useState(0);
   const [blackouts, setBlackouts] = useState<BlackoutSummary[]>([]);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [monthOffset, setMonthOffset] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`/api/items/${itemId}/bookings`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (!cancelled) {
-          setBookings(data.bookings ?? []);
-          setBlackouts(data.blackouts ?? []);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [itemId]);
 
   const today = new Date();
   const todayIso = isoDate(today.getFullYear(), today.getMonth(), today.getDate());
@@ -65,6 +40,46 @@ export default function AvailabilityCalendar({
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startWeekday = new Date(year, month, 1).getDay();
 
+  useEffect(() => {
+    let cancelled = false;
+    const startDate = isoDate(year, month, 1);
+    const endDate = isoDate(year, month, daysInMonth);
+    fetch(`/api/items/${itemId}/bookings?startDate=${startDate}&endDate=${endDate}`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`Availability request failed (${res.status}).`);
+        return res.json();
+      })
+      .then((data) => {
+        if (
+          typeof data.totalQuantity !== "number" ||
+          !data.availableByDay ||
+          typeof data.availableByDay !== "object" ||
+          Array.isArray(data.availableByDay) ||
+          !Array.isArray(data.blackouts)
+        ) {
+          throw new Error("Availability response is incomplete.");
+        }
+        if (!cancelled) {
+          setAvailabilityError(null);
+          setAvailableByDay(data.availableByDay);
+          setTotalQuantity(data.totalQuantity);
+          setBlackouts(data.blackouts);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          console.error("Unable to load item availability.", error);
+          setAvailabilityError("Availability could not be loaded. Please try again.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [itemId, year, month, daysInMonth]);
+
   const cells: (number | null)[] = [
     ...Array(startWeekday).fill(null),
     ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
@@ -72,15 +87,11 @@ export default function AvailabilityCalendar({
 
   function statusFor(day: number): "past" | "blackout" | "full" | "limited" | "available" {
     const iso = isoDate(year, month, day);
-    if (iso < todayIso) return "past";
-    if (blackouts.some((b) => b.startDate <= iso && iso <= b.endDate)) return "blackout";
-    const reserved = bookings
-      .filter((b) => b.startDate <= iso && iso <= b.endDate)
-      .reduce((sum, b) => sum + b.quantity, 0);
-    const remaining = totalQuantity - reserved;
-    if (remaining <= 0) return "full";
-    if (remaining < totalQuantity) return "limited";
-    return "available";
+    const dateOverride = calendarDateOverride(iso, todayIso, blackouts);
+    if (dateOverride) return dateOverride;
+    const remaining = availableByDay[iso];
+    if (remaining === undefined) return "full";
+    return availabilityLevel(remaining, totalQuantity);
   }
 
   const dotClass: Record<string, string> = {
@@ -97,7 +108,10 @@ export default function AvailabilityCalendar({
         <button
           type="button"
           aria-label="Previous month"
-          onClick={() => setMonthOffset((m) => m - 1)}
+          onClick={() => {
+            setLoading(true);
+            setMonthOffset((m) => m - 1);
+          }}
           disabled={monthOffset <= 0}
           className="rounded-full px-2 py-1 font-tag text-sm text-pine transition-standard hover:bg-canvas-dark disabled:opacity-30"
         >
@@ -109,7 +123,10 @@ export default function AvailabilityCalendar({
         <button
           type="button"
           aria-label="Next month"
-          onClick={() => setMonthOffset((m) => m + 1)}
+          onClick={() => {
+            setLoading(true);
+            setMonthOffset((m) => m + 1);
+          }}
           className="rounded-full px-2 py-1 font-tag text-sm text-pine transition-standard hover:bg-canvas-dark"
         >
           ›
@@ -119,6 +136,11 @@ export default function AvailabilityCalendar({
       {loading ? (
         <p className="pl-4 font-tag text-xs uppercase tracking-wide text-ink/50">Loading availability…</p>
       ) : (
+        availabilityError ? (
+          <p className="pl-4 font-tag text-xs uppercase tracking-wide text-brick">
+            {availabilityError}
+          </p>
+        ) : (
         <>
           <div className="grid grid-cols-7 gap-1 pl-4 pr-1">
             {WEEKDAYS.map((day, i) => (
@@ -149,6 +171,7 @@ export default function AvailabilityCalendar({
             <Legend swatch="bg-ink/60" label="Unavailable" />
           </div>
         </>
+        )
       )}
     </div>
   );

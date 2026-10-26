@@ -4,7 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { useRequireUser } from "@/lib/use-require-user";
 import OrgNav from "@/components/OrgNav";
-import type { LoanRequestStatus } from "@/lib/types";
+import RequestCancellation from "@/components/RequestCancellation";
+import RequestStatusHistory from "@/components/RequestStatusHistory";
+import FulfillmentActions from "@/components/FulfillmentActions";
+import type { LoanRequestStatus, RequestStatusHistory as RequestStatusHistoryEntry } from "@/lib/types";
+import { readOrgRequestsResponse } from "@/lib/org-requests-response";
 
 interface RequestWithItem {
   id: string;
@@ -17,13 +21,19 @@ interface RequestWithItem {
   quantity: number;
   notes: string;
   status: LoanRequestStatus;
+  bookingId: string | null;
+  bookingStatus: "pending" | "approved" | "cancelled" | null;
+  fulfillmentStatus: "not_started" | "collected" | "returned" | "donation_completed" | "legacy_unknown" | null;
+  transactionType: "paid_hire" | "temporary_free_loan" | "permanent_donation" | null;
   adminNote: string;
+  statusHistory: RequestStatusHistoryEntry[];
 }
 
 const TABS: { label: string; value: LoanRequestStatus | "all" }[] = [
   { label: "Pending", value: "pending" },
   { label: "Approved", value: "approved" },
   { label: "Declined", value: "declined" },
+  { label: "Cancelled", value: "cancelled" },
   { label: "All", value: "all" },
 ];
 
@@ -31,24 +41,62 @@ export default function OrgRequestsPage() {
   const { ready } = useRequireUser({ role: "org" });
   const { user } = useAuth();
   const [requests, setRequests] = useState<RequestWithItem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loadedUser, setLoadedUser] = useState<typeof user>();
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const loading = refreshing || (
+    ready && user?.orgStatus === "approved" && loadedUser !== user
+  );
   const [filter, setFilter] = useState<LoanRequestStatus | "all">("pending");
   const [decliningId, setDecliningId] = useState<string | null>(null);
   const [declineNote, setDeclineNote] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
 
-  const load = useCallback(() => {
-    setLoading(true);
-    fetch("/api/org/requests")
-      .then((r) => r.json())
-      .then((data) => setRequests(data.requests ?? []))
-      .finally(() => setLoading(false));
+  const fetchRequests = useCallback((): Promise<RequestWithItem[]> => {
+    return fetch("/api/org/requests")
+      .then((response) => readOrgRequestsResponse<RequestWithItem>(response));
   }, []);
 
+  const load = useCallback(() => {
+    setRefreshing(true);
+    fetchRequests()
+      .then((data) => {
+        setRequests(data);
+        setLoadError(null);
+      })
+      .catch((error: unknown) => {
+        setLoadError(error instanceof Error ? error.message : "Could not load requests. Please try again.");
+      })
+      .finally(() => {
+        setLoadedUser(user);
+        setRefreshing(false);
+      });
+  }, [fetchRequests, user]);
+
   useEffect(() => {
-    if (ready && user?.orgStatus === "approved") load();
-    else setLoading(false);
-  }, [ready, user, load]);
+    if (!ready || user?.orgStatus !== "approved") return;
+
+    let active = true;
+    fetchRequests()
+      .then((data) => {
+        if (active) {
+          setRequests(data);
+          setLoadError(null);
+        }
+      })
+      .catch((error: unknown) => {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : "Could not load requests. Please try again.");
+        }
+      })
+      .finally(() => {
+        if (active) setLoadedUser(user);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [ready, user, fetchRequests]);
 
   async function approve(id: string) {
     setBusyId(id);
@@ -108,7 +156,19 @@ export default function OrgRequestsPage() {
         ))}
       </div>
 
-      {loading ? (
+      {loadError ? (
+        <div role="alert" className="gear-tag mt-8 p-4 font-body text-sm text-brick">
+          <p>{loadError}</p>
+          <button
+            type="button"
+            onClick={load}
+            disabled={refreshing}
+            className="mt-3 rounded-full border border-brick px-4 py-1.5 font-tag text-xs uppercase tracking-wide disabled:opacity-50"
+          >
+            Try again
+          </button>
+        </div>
+      ) : loading ? (
         <p className="mt-8 font-tag text-sm uppercase tracking-wide text-ink/50">Loading…</p>
       ) : visible.length === 0 ? (
         <p className="mt-8 font-body text-ink/60">No {filter === "all" ? "" : filter} requests.</p>
@@ -132,6 +192,22 @@ export default function OrgRequestsPage() {
                 </div>
                 <StatusBadge status={r.status} />
               </div>
+
+              <RequestStatusHistory events={r.statusHistory} />
+              {r.bookingId && r.bookingStatus && r.fulfillmentStatus && r.transactionType && (
+                <FulfillmentActions
+                  bookingId={r.bookingId}
+                  bookingStatus={r.bookingStatus}
+                  fulfillmentStatus={r.fulfillmentStatus}
+                  transactionType={r.transactionType}
+                  onChanged={load}
+                />
+              )}
+              {(r.status === "pending" || r.status === "approved") && (
+                <div className="mt-3">
+                  <RequestCancellation requestId={r.id} onCancelled={load} />
+                </div>
+              )}
 
               {r.status === "pending" && (
                 <div className="mt-3 border-t border-dashed border-canvas-line pt-3">
@@ -205,6 +281,7 @@ function StatusBadge({ status }: { status: LoanRequestStatus }) {
     pending: "bg-amber/20 text-amber-dark",
     approved: "bg-moss/20 text-moss",
     declined: "bg-brick/20 text-brick",
+    cancelled: "bg-ink/10 text-ink/60",
   };
   return (
     <span className={`w-fit shrink-0 rounded-full px-3 py-1 font-tag text-xs uppercase tracking-wide ${styles[status]}`}>

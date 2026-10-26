@@ -1,8 +1,8 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { createRequestWithBooking, getBlackoutsForItem, getBookingsForItem, getItemById } from "@/lib/data/queries";
+import { createRequestWithBooking, getAvailabilityBookingsForItem, getBlackoutsForItem, getItemById } from "@/lib/data/queries";
 import { getCurrentUser } from "@/lib/auth";
-import { isBlackedOut, maxReservedInRange } from "@/lib/availability";
+import { minAvailableInRange, isBlackedOut, isIsoDate } from "@/lib/availability";
 import { notifyAdmins, notifyUser } from "@/lib/notify";
 import { CURRENT_TERMS_VERSION } from "@/lib/terms";
 
@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => null);
   const { itemId, startDate, endDate, quantity, notes, termsAccepted } = body ?? {};
 
-  if (!itemId || !startDate || !endDate || !quantity) {
+  if (!itemId || !isIsoDate(startDate) || !isIsoDate(endDate) || !quantity) {
     return NextResponse.json(
       { error: "Item, dates and quantity are required." },
       { status: 400 }
@@ -57,9 +57,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const itemBookings = await getBookingsForItem(itemId);
-  const reserved = maxReservedInRange(itemBookings, startDate, endDate);
-  const available = item.totalQuantity - reserved;
+  const itemBookings = await getAvailabilityBookingsForItem(itemId);
+  const available = minAvailableInRange(
+    itemBookings,
+    item.totalQuantity,
+    startDate,
+    endDate,
+    itemBlackouts
+  );
   if (qty > available) {
     return NextResponse.json(
       {
@@ -73,31 +78,32 @@ export async function POST(request: NextRequest) {
   }
 
   const requestId = randomUUID();
-  const loanRequest = await createRequestWithBooking(
-    {
-      id: requestId,
-      itemId,
-      userId: user.id,
-      requesterName: user.name,
-      requesterEmail: user.email,
-      requesterOrganisation: user.organisation,
-      requesterPhone: user.phone,
-      startDate,
-      endDate,
-      quantity: qty,
-      notes: notes ? String(notes).trim() : "",
-      status: "pending" as const,
-      adminNote: "",
-      createdAt: new Date().toISOString(),
-      reviewedAt: null,
-      termsAccepted: true,
-      termsVersion: CURRENT_TERMS_VERSION,
-      badHire: false,
-      stripeCustomerId: null,
-      stripePaymentMethodId: null,
-      depositChargeStatus: "none",
-      depositChargedAt: null,
-    },
+  const loanRequestData = {
+    id: requestId,
+    itemId,
+    userId: user.id,
+    requesterName: user.name,
+    requesterEmail: user.email,
+    requesterOrganisation: user.organisation,
+    requesterPhone: user.phone,
+    startDate,
+    endDate,
+    quantity: qty,
+    notes: notes ? String(notes).trim() : "",
+    status: "pending" as const,
+    adminNote: "",
+    createdAt: new Date().toISOString(),
+    reviewedAt: null,
+    termsAccepted: true,
+    termsVersion: CURRENT_TERMS_VERSION,
+    badHire: false,
+    stripeCustomerId: null,
+    stripePaymentMethodId: null,
+    depositChargeStatus: "none" as const,
+    depositChargedAt: null,
+  };
+  const created = await createRequestWithBooking(
+    loanRequestData,
     {
       id: randomUUID(),
       itemId,
@@ -108,19 +114,29 @@ export async function POST(request: NextRequest) {
       status: "pending",
     }
   );
+  if (!created) {
+    return NextResponse.json(
+      { error: "This item is unavailable for those dates." },
+      { status: 409 }
+    );
+  }
 
   // The owning organisation is the one who fields this request — the admin only
   // handles requests for its own (admin-owned, ownerId null) inventory.
-  if (item.ownerId) {
-    await notifyUser(
-      item.ownerId,
-      "new_request",
-      `New request for ${item.name} from ${user.name}`,
-      "/org/requests"
-    );
-  } else {
-    await notifyAdmins("new_request", `New request for ${item.name} from ${user.name}`, "/admin/requests");
+  try {
+    if (item.ownerId) {
+      await notifyUser(
+        item.ownerId,
+        "new_request",
+        `New request for ${item.name} from ${user.name}`,
+        "/org/requests"
+      );
+    } else {
+      await notifyAdmins("new_request", `New request for ${item.name} from ${user.name}`, "/admin/requests");
+    }
+  } catch (error) {
+    console.error("Loan request was created, but notification delivery failed.", { requestId, error });
   }
 
-  return NextResponse.json({ request: loanRequest }, { status: 201 });
+  return NextResponse.json({ request: loanRequestData }, { status: 201 });
 }

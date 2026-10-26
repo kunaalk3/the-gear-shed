@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { getItemById, getReviewSummaryForItem, getReviewsForItem } from "@/lib/data/queries";
+import { EQUIPMENT_CONDITION_LABELS, TRANSACTION_TYPE_LABELS } from "@/lib/types";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
@@ -68,11 +69,36 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
               </dt>
               <dd className="font-display text-2xl font-bold text-ink">x{item.totalQuantity}</dd>
             </div>
+            <div className="col-span-2">
+              <dt className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/50">
+                Transaction type
+              </dt>
+              <dd className="mt-1 font-display text-lg font-bold text-ink">
+                {TRANSACTION_TYPE_LABELS[item.transactionType]}
+              </dd>
+            </div>
+            {item.transactionType === "paid_hire" && (
+              <div>
+                <dt className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/50">Hire fee</dt>
+                <dd className="font-display text-2xl font-bold text-ink">${item.hireFee}</dd>
+              </div>
+            )}
             <div>
               <dt className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/50">Deposit</dt>
               <dd className="font-display text-2xl font-bold text-ink">
                 {item.depositRequired > 0 ? `$${item.depositRequired}` : "None"}
               </dd>
+            </div>
+            <div className="col-span-2">
+              <dt className="font-tag text-[0.65rem] uppercase tracking-widest text-ink/50">
+                Physical condition
+              </dt>
+              <dd className="mt-1 font-body text-sm font-semibold text-ink">
+                {EQUIPMENT_CONDITION_LABELS[item.condition]}
+              </dd>
+              {item.conditionNotes && (
+                <dd className="mt-1 font-body text-sm text-ink/70">{item.conditionNotes}</dd>
+              )}
             </div>
           </dl>
 
@@ -107,12 +133,12 @@ export default async function ItemDetailPage({ params }: { params: Promise<{ id:
             href={`/equipment/${item.id}/request`}
             className="transition-standard mt-8 inline-block rounded-full bg-amber px-6 py-3 font-body font-semibold text-pine hover:bg-amber-dark"
           >
-            Request to loan this →
+            Request this item →
           </Link>
 
           <div className="mt-8">
             <h2 className="mb-3 font-display text-xl font-bold text-pine">Check availability</h2>
-            <AvailabilityCalendar itemId={item.id} totalQuantity={item.totalQuantity} />
+            <AvailabilityCalendar itemId={item.id} />
           </div>
         </div>
       </div>

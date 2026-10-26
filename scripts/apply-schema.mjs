@@ -2,6 +2,7 @@ import { neon } from "@neondatabase/serverless";
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import path from "path";
+import { splitSqlStatements } from "./sql-statements.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -36,14 +37,57 @@ if (!url) {
 const sql = neon(url);
 const schemaPath = path.join(__dirname, "..", "db", "schema.sql");
 const schema = readFileSync(schemaPath, "utf8");
+const equipmentFieldsMigrationPath = path.join(__dirname, "add-equipment-listing-fields.sql");
+const equipmentFieldsMigration = readFileSync(equipmentFieldsMigrationPath, "utf8");
+const bookingHistoryMigrationPath = path.join(__dirname, "add-booking-cancellation-history.sql");
+const bookingHistoryMigration = readFileSync(bookingHistoryMigrationPath, "utf8");
+const bookingFulfillmentMigrationPath = path.join(__dirname, "add-booking-fulfillment.sql");
+const bookingFulfillmentMigration = readFileSync(bookingFulfillmentMigrationPath, "utf8");
+const depositChargeAttemptsMigrationPath = path.join(__dirname, "add-deposit-charge-attempts.sql");
+const depositChargeAttemptsMigration = readFileSync(depositChargeAttemptsMigrationPath, "utf8");
 
-const statements = schema
-  .split(";")
-  .map((s) => s.trim())
-  .filter((s) => s.length > 0);
+async function applySqlFile(contents, { transactional = false } = {}) {
+  const statements = splitSqlStatements(contents);
 
-for (const statement of statements) {
-  await sql.query(statement);
+  if (transactional) {
+    const startsTransaction = /^begin(?:\s+transaction)?$/i.test(statements[0] ?? "");
+    const endsTransaction = /^commit(?:\s+transaction)?$/i.test(statements.at(-1) ?? "");
+    if (startsTransaction !== endsTransaction) {
+      throw new Error("Migration must have matching BEGIN and COMMIT statements.");
+    }
+    if (startsTransaction) {
+      statements.shift();
+      statements.pop();
+    }
+
+    if (statements.length > 0) {
+      await sql.transaction((transaction) =>
+        statements.map((statement) => transaction.query(statement))
+      );
+    }
+  } else {
+    for (const statement of statements) {
+      await sql.query(statement);
+    }
+  }
+
+  return statements.length;
 }
 
-console.log(`Applied ${statements.length} schema statements.`);
+const schemaStatementCount = await applySqlFile(schema);
+const equipmentFieldsMigrationStatementCount = await applySqlFile(equipmentFieldsMigration, {
+  transactional: true,
+});
+const bookingHistoryMigrationStatementCount = await applySqlFile(bookingHistoryMigration, {
+  transactional: true,
+});
+const bookingFulfillmentMigrationStatementCount = await applySqlFile(bookingFulfillmentMigration, {
+  transactional: true,
+});
+const depositChargeAttemptsMigrationStatementCount = await applySqlFile(depositChargeAttemptsMigration, {
+  transactional: true,
+});
+
+console.log(
+  `Applied ${schemaStatementCount} schema statements, ${equipmentFieldsMigrationStatementCount} equipment listing migration statements, ${bookingHistoryMigrationStatementCount} booking history migration statements, ${bookingFulfillmentMigrationStatementCount} booking fulfillment migration statements, and ${depositChargeAttemptsMigrationStatementCount} deposit charge attempt migration statements.`
+);

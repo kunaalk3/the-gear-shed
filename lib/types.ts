@@ -13,6 +13,54 @@ export const CATEGORIES: Category[] = [
   "Cooking Facilities",
 ];
 
+export const TRANSACTION_TYPES = [
+  "paid_hire",
+  "temporary_free_loan",
+  "permanent_donation",
+] as const;
+
+export type TransactionType = (typeof TRANSACTION_TYPES)[number];
+
+export const TRANSACTION_TYPE_LABELS: Record<TransactionType, string> = {
+  paid_hire: "Paid hire",
+  temporary_free_loan: "Temporary free loan",
+  permanent_donation: "Permanent donation",
+};
+
+export const EQUIPMENT_CONDITIONS = ["excellent", "good", "fair", "poor", "unknown"] as const;
+
+export type EquipmentCondition = (typeof EQUIPMENT_CONDITIONS)[number];
+
+export const EQUIPMENT_CONDITION_LABELS: Record<EquipmentCondition, string> = {
+  excellent: "Excellent",
+  good: "Good",
+  fair: "Fair",
+  poor: "Poor",
+  unknown: "Condition not recorded",
+};
+
+export function isTransactionType(value: unknown): value is TransactionType {
+  return typeof value === "string" && TRANSACTION_TYPES.includes(value as TransactionType);
+}
+
+export function isEquipmentCondition(value: unknown): value is EquipmentCondition {
+  return typeof value === "string" && EQUIPMENT_CONDITIONS.includes(value as EquipmentCondition);
+}
+
+export function parseNonNegativeInteger(value: unknown): number | null {
+  const amount =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && /^\d+$/.test(value.trim())
+        ? Number(value)
+        : Number.NaN;
+  return Number.isSafeInteger(amount) && amount >= 0 && amount <= 2_147_483_647 ? amount : null;
+}
+
+export function parseHireFee(value: unknown): number | null {
+  return parseNonNegativeInteger(value);
+}
+
 export interface EquipmentItem {
   id: string;
   name: string;
@@ -20,7 +68,11 @@ export interface EquipmentItem {
   description: string;
   images: string[];
   totalQuantity: number;
-  depositRequired: number; // 0 means no deposit; display-only in this phase, no payment flow yet
+  transactionType: TransactionType;
+  hireFee: number;
+  condition: EquipmentCondition;
+  conditionNotes: string;
+  depositRequired: number;
   bookingConditions: string;
   cancellationRules: string;
   retired: boolean;
@@ -29,7 +81,7 @@ export interface EquipmentItem {
   dropoffNotes: string;
 }
 
-export type BookingStatus = "pending" | "approved";
+export type BookingStatus = "pending" | "approved" | "cancelled";
 
 export interface Booking {
   id: string;
@@ -70,9 +122,45 @@ export interface User {
 
 export type PublicUser = Omit<User, "passwordHash">;
 
-export type LoanRequestStatus = "pending" | "approved" | "declined";
+export type LoanRequestStatus = "pending" | "approved" | "declined" | "cancelled";
+
+export interface RequestStatusHistory {
+  id: string;
+  requestId: string;
+  fromStatus: LoanRequestStatus | null;
+  toStatus: LoanRequestStatus;
+  actorUserId: string | null;
+  actorName: string | null;
+  reason: string;
+  createdAt: string;
+}
 
 export type DepositChargeStatus = "none" | "card_saved" | "charged" | "failed";
+
+export type BookingPaymentStatus =
+  | "awaiting_payment_method"
+  | "pending"
+  | "processing"
+  | "succeeded"
+  | "failed"
+  | "refund_pending"
+  | "refunded"
+  | "refund_failed"
+  | "manual_review";
+
+export interface BookingPayment {
+  id: string;
+  requestId: string;
+  kind: "hire_fee" | "deposit";
+  amountCents: number;
+  currency: "aud";
+  status: BookingPaymentStatus;
+  stripePaymentIntentId: string | null;
+  stripeRefundId: string | null;
+  chargedAt: string | null;
+  refundedAt: string | null;
+  failureMessage: string | null;
+}
 
 export interface LoanRequest {
   id: string;
@@ -97,6 +185,7 @@ export interface LoanRequest {
   stripePaymentMethodId: string | null;
   depositChargeStatus: DepositChargeStatus;
   depositChargedAt: string | null;
+  bookingPayments?: BookingPayment[];
 }
 
 export interface Feedback {
@@ -111,6 +200,7 @@ export type NotificationType =
   | "new_request"
   | "request_approved"
   | "request_declined"
+  | "request_cancelled"
   | "org_approved"
   | "org_rejected"
   | "new_org_pending"
